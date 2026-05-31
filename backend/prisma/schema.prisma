@@ -1,0 +1,226 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TdahType {
+  INATTENTIF
+  HYPERACTIF
+  COMBINE
+  NON_SPECIFIE
+  PREFERE_NE_PAS_DIRE
+}
+
+enum WorkStyle {
+  SILENCIEUX
+  SOCIAL
+  FLEXIBLE
+}
+
+enum SessionStatus {
+  WAITING
+  ACTIVE
+  DONE
+  SOLO
+}
+
+enum UserRole {
+  USER
+  PREMIUM
+  TEAMS
+  COACH
+  MODERATOR
+  ADMIN
+}
+
+enum BadgeType {
+  PREMIER_PAS
+  REGULIER
+  BODY_DOUBLER
+  CERCLE_FIDELE
+  EARLY_ACTIVATOR
+  REBOUND_CHAMPION
+  BRAIN_BREAK_MASTER
+}
+
+enum ForumSpace {
+  STRATEGIES_TDAH
+  MEDICATION
+  OUTILS
+  TRAVAIL
+  ETUDES
+  VIE_PERSO
+}
+
+model User {
+  id              String       @id @default(cuid())
+  email           String       @unique
+  passwordHash    String?
+  googleId        String?      @unique
+  name            String
+  avatar          String?
+  timezone        String       @default("Europe/Paris")
+  tdahType        TdahType?
+  workStyle       WorkStyle    @default(FLEXIBLE)
+  sensitivities   String[]
+  goals           String[]
+  role            UserRole     @default(USER)
+  isPremium       Boolean      @default(false)
+  stripeId        String?      @unique
+  emailVerified   Boolean      @default(false)
+  lowStimMode     Boolean      @default(false)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  sessions        Participant[]
+  circleAs        CircleMember[] @relation("CircleUser")
+  circleOf        CircleMember[] @relation("CirclePartner")
+  badges          Badge[]
+  moodLogs        MoodLog[]
+  forumPosts      ForumPost[]
+  subscription    Subscription?
+  coachProfile    CoachProfile?
+  refreshTokens   RefreshToken[]
+
+  @@map("users")
+}
+
+model Session {
+  id           String        @id @default(cuid())
+  duration     Int
+  quietMode    Boolean       @default(false)
+  soloMode     Boolean       @default(false)
+  cameraOff    Boolean       @default(false)
+  status       SessionStatus @default(WAITING)
+  dailyRoomUrl String?
+  startTime    DateTime?
+  endTime      DateTime?
+  createdAt    DateTime      @default(now())
+
+  participants Participant[]
+  moodLogs     MoodLog[]
+
+  @@map("sessions")
+}
+
+model Participant {
+  id             String   @id @default(cuid())
+  sessionId      String
+  userId         String
+  moodBefore     Int[]
+  task           String?
+  brainBreakUsed Boolean  @default(false)
+  joinedAt       DateTime @default(now())
+  leftAt         DateTime?
+
+  session Session @relation(fields: [sessionId], references: [id])
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@unique([sessionId, userId])
+  @@map("participants")
+}
+
+model CircleMember {
+  id           String   @id @default(cuid())
+  userId       String
+  partnerId    String
+  sessionCount Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  user    User @relation("CircleUser", fields: [userId], references: [id])
+  partner User @relation("CirclePartner", fields: [partnerId], references: [id])
+
+  @@unique([userId, partnerId])
+  @@map("circle_members")
+}
+
+model Badge {
+  id        String    @id @default(cuid())
+  userId    String
+  type      BadgeType
+  earnedAt  DateTime  @default(now())
+  shownAt   DateTime?
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, type])
+  @@map("badges")
+}
+
+model MoodLog {
+  id        String   @id @default(cuid())
+  userId    String
+  sessionId String
+  energy    Int
+  stress    Int
+  anxiety   Int
+  focus     Int
+  fatigue   Int
+  loggedAt  DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id])
+  session Session @relation(fields: [sessionId], references: [id])
+
+  @@map("mood_logs")
+}
+
+model ForumPost {
+  id             String     @id @default(cuid())
+  userId         String
+  spaceId        ForumSpace
+  content        String
+  emojiReactions Json       @default("{}")
+  parentId       String?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  user   User       @relation(fields: [userId], references: [id])
+  parent ForumPost? @relation("PostReplies", fields: [parentId], references: [id])
+  replies ForumPost[] @relation("PostReplies")
+
+  @@map("forum_posts")
+}
+
+model Subscription {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  stripeSubId       String   @unique
+  plan              String
+  status            String
+  currentPeriodEnd  DateTime
+  createdAt         DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("subscriptions")
+}
+
+model CoachProfile {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  certifications String[]
+  specialties    String[]
+  bookingUrl     String?
+  verifiedAt     DateTime?
+  createdAt      DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("coach_profiles")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("refresh_tokens")
+}

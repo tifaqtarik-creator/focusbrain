@@ -1,0 +1,56 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-teal: #5DCAA5;
+    --color-violet: #7F77DD;
+    --color-amber: #EF9F27;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    font-family: 'Nunito', sans-serif;
+    font-size: 16px;
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    @apply bg-white text-gray-900;
+    min-height: 100vh;
+  }
+
+  /* Mode Low Stim — aucune animation, couleurs réduites */
+  .low-stim * {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .low-stim {
+    @apply bg-white text-gray-900;
+    font-size: 18px !important;
+  }
+
+  /* Respect prefers-reduced-motion */
+  @media (prefers-reduced-motion: reduce) {
+    * {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  /* Focus visible pour navigation clavier */
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-teal-500;
+  }
+
+  /* Taille police minimum 16px */
+  p, span, label, input, button, textarea, select {
+    font-size: max(16px, 1rem);
+  }
+}
