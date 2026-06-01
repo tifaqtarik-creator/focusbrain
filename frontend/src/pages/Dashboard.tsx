@@ -1,660 +1,502 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
 import FullCalendar from '@fullcalendar/react';
-import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
+import dayGridPlugin from '@fullcalendar/daygrid';
 import interactionPlugin from '@fullcalendar/interaction';
-import { useAppStore } from '../stores/useStore';
-import { connectSocket, getSocket } from '../lib/socket';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
+import { useAppStore } from '../stores/useStore';
+import { useSlotStore } from '../stores/useSlotStore';
+import { useI18n } from '../lib/i18n';
+import SlotNotifications from '../components/slots/SlotNotifications';
 
-// ─── Types ───────────────────────────────────────────────────────────────────
-interface OnlineUser {
-  id: string;
-  name: string;
-  avatar?: string;
-  status: 'available' | 'in_session' | 'searching' | 'busy' | 'offline';
-  sessionsToday: number;
-  connectedSince: string;
+const DURATIONS = [15, 25, 50, 75];
+
+function slotColor(status: string) {
+  if (status === 'OPEN')      return '#10b981';
+  if (status === 'PENDING')   return '#f59e0b';
+  if (status === 'CONFIRMED') return '#ef4444';
+  return '#9ca3af';
 }
 
-interface LiveActivity {
-  id: string;
-  type: 'session_created' | 'member_joined' | 'session_started' | 'session_ended' | 'invitation';
-  message: string;
-  time: string;
-  avatar?: string;
+function StatusBadge({ status }: { status: string }) {
+  const map: Record<string, { label: string; cls: string }> = {
+    OPEN:      { label: '● Disponible', cls: 'bg-teal-100 text-teal-700' },
+    PENDING:   { label: '● En attente', cls: 'bg-amber-100 text-amber-700' },
+    CONFIRMED: { label: '● Confirmé',   cls: 'bg-red-100 text-red-600' },
+    CANCELLED: { label: '● Annulé',     cls: 'bg-gray-100 text-gray-400' },
+  };
+  const s = map[status] || map.CANCELLED;
+  return <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${s.cls}`}>{s.label}</span>;
 }
 
-interface DailyObjective {
-  id: string;
-  text: string;
-  done: boolean;
-}
-
-interface UserProfile {
-  id: string;
-  name: string;
-  avatar?: string;
-  totalFocusMin: number;
-  totalSessions: number;
-  level: number;
-  badges: string[];
-  availability: string;
-  interests: string[];
-  recentSessions: number;
-}
-
-// ─── Session Templates ────────────────────────────────────────────────────────
-const SESSION_TEMPLATES = [
-  { label: 'Focus', duration: 15, color: '#5DCAA5', icon: '⚡' },
-  { label: 'Pomodoro', duration: 25, color: '#7F77DD', icon: '🍅' },
-  { label: 'Deep Work', duration: 45, color: '#EF9F27', icon: '🎯' },
-  { label: 'Standard', duration: 60, color: '#3B82F6', icon: '📚' },
-  { label: 'Long', duration: 90, color: '#EC4899', icon: '🚀' },
-];
-
-const STATUS_CONFIG = {
-  available: { label: 'Disponible', color: 'bg-teal-400', dot: '🟢' },
-  in_session: { label: 'En session', color: 'bg-blue-400', dot: '🔵' },
-  searching: { label: 'Cherche un partner', color: 'bg-amber-400', dot: '🟡' },
-  busy: { label: 'Occupé', color: 'bg-red-400', dot: '🔴' },
-  offline: { label: 'Hors ligne', color: 'bg-gray-300', dot: '⚫' },
-};
-
-// ─── Mock data (remplacé par vrai socket en prod) ────────────────────────────
-const MOCK_ONLINE_USERS: OnlineUser[] = [
-  { id: '1', name: 'Yasmine', status: 'available', sessionsToday: 2, connectedSince: '09:30' },
-  { id: '2', name: 'Adam', status: 'in_session', sessionsToday: 3, connectedSince: '08:15' },
-  { id: '3', name: 'Nadia', status: 'searching', sessionsToday: 1, connectedSince: '10:00' },
-  { id: '4', name: 'Karim', status: 'available', sessionsToday: 0, connectedSince: '10:45' },
-  { id: '5', name: 'Sara', status: 'busy', sessionsToday: 4, connectedSince: '07:00' },
-];
-
-const MOCK_ACTIVITIES: LiveActivity[] = [
-  { id: '1', type: 'session_started', message: 'Yasmine a démarré une session Deep Work', time: 'Il y a 2 min' },
-  { id: '2', type: 'member_joined', message: 'Karim vient de se connecter', time: 'Il y a 5 min' },
-  { id: '3', type: 'session_ended', message: 'Adam a terminé 25 min de focus 🎉', time: 'Il y a 8 min' },
-  { id: '4', type: 'session_created', message: 'Nouvelle session Pomodoro créée pour 11h00', time: 'Il y a 12 min' },
-  { id: '5', type: 'invitation', message: 'Nadia t\'a envoyé une invitation', time: 'Il y a 15 min' },
-];
-
-// ─── Main Dashboard ──────────────────────────────────────────────────────────
 export default function Dashboard() {
+  useI18n();
   const user = useAppStore(s => s.user);
+  const { candidates } = useSlotStore();
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const calendarRef = useRef<any>(null);
 
-  const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>(MOCK_ONLINE_USERS);
-  const [activities, setActivities] = useState<LiveActivity[]>(MOCK_ACTIVITIES);
-  const [objectives, setObjectives] = useState<DailyObjective[]>([
-    { id: '1', text: 'Compléter 3 sessions de focus', done: true },
-    { id: '2', text: 'Finir le rapport client', done: false },
-    { id: '3', text: 'Répondre aux emails importants', done: false },
-  ]);
-  const [newObjective, setNewObjective] = useState('');
-  const [selectedProfile, setSelectedProfile] = useState<UserProfile | null>(null);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showMatchModal, setShowMatchModal] = useState(false);
-  const [matchState, setMatchState] = useState<'idle' | 'searching' | 'found'>('idle');
-  const [selectedSlot, setSelectedSlot] = useState<{ start: Date; end: Date } | null>(null);
-  const [calendarEvents, setCalendarEvents] = useState([
-    {
-      id: '1', title: '🍅 Pomodoro — Yasmine', start: new Date().toISOString().slice(0, 10) + 'T09:00:00',
-      end: new Date().toISOString().slice(0, 10) + 'T09:25:00', backgroundColor: '#7F77DD', borderColor: '#7F77DD',
+  const [createModal, setCreateModal] = useState<{ start: Date } | null>(null);
+  const [joinModal, setJoinModal]     = useState<any | null>(null);
+  const [detailModal, setDetailModal] = useState<any | null>(null);
+  const [duration, setDuration]       = useState(25);
+
+  // ── Queries ────────────────────────────────────────────────────────────────
+  const { data: slots = [] } = useQuery({
+    queryKey: ['slots'],
+    queryFn: () => api.get('/slots').then(r => r.data),
+    refetchInterval: 30000,
+  });
+
+  const { data: mySlots = [] } = useQuery({
+    queryKey: ['slots-mine'],
+    queryFn: () => api.get('/slots/mine').then(r => r.data),
+    refetchInterval: 15000,
+  });
+
+  const { data: pending = [] } = useQuery({
+    queryKey: ['slots-pending'],
+    queryFn: () => api.get('/slots/pending').then(r => r.data),
+    refetchInterval: 15000,
+  });
+
+  // ── Mutations ──────────────────────────────────────────────────────────────
+  const createSlot = useMutation({
+    mutationFn: (data: { startTime: string; duration: number }) => api.post('/slots', data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['slots'] });
+      qc.invalidateQueries({ queryKey: ['slots-mine'] });
+      setCreateModal(null);
     },
-    {
-      id: '2', title: '🎯 Deep Work — Adam', start: new Date().toISOString().slice(0, 10) + 'T10:30:00',
-      end: new Date().toISOString().slice(0, 10) + 'T11:15:00', backgroundColor: '#EF9F27', borderColor: '#EF9F27',
+  });
+
+  const requestSlot = useMutation({
+    mutationFn: (slotId: string) => api.post(`/slots/${slotId}/request`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['slots'] });
+      qc.invalidateQueries({ queryKey: ['slots-pending'] });
+      setJoinModal(null);
     },
-    {
-      id: '3', title: '⚡ Focus — Toi', start: new Date().toISOString().slice(0, 10) + 'T14:00:00',
-      end: new Date().toISOString().slice(0, 10) + 'T14:15:00', backgroundColor: '#5DCAA5', borderColor: '#5DCAA5',
+  });
+
+  const confirmCandidate = useMutation({
+    mutationFn: ({ slotId, candidateId }: { slotId: string; candidateId: string }) =>
+      api.post(`/slots/${slotId}/confirm`, { candidateId }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['slots-mine'] });
+      qc.invalidateQueries({ queryKey: ['slots'] });
+      setDetailModal(null);
     },
-  ]);
+  });
 
-  const stats = {
-    focusMin: 78,
-    sessions: 3,
-    tasks: 2,
-    streak: 7,
-    goalPercent: 65,
-    avgSession: 26,
-    successRate: 85,
-    partners: 4,
-    energyLevel: 4,
-  };
+  const cancelSlot = useMutation({
+    mutationFn: (slotId: string) => api.post(`/slots/${slotId}/cancel`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['slots-mine'] });
+      qc.invalidateQueries({ queryKey: ['slots'] });
+    },
+  });
 
-  useEffect(() => {
-    connectSocket();
-    const socket = getSocket();
-    socket.on('match:found', ({ sessionId }: { sessionId: string }) => {
-      setMatchState('found');
-      setTimeout(() => navigate(`/session/${sessionId}`), 1000);
-    });
-    return () => { socket.off('match:found'); };
-  }, [navigate]);
+  // ── Événements calendrier ──────────────────────────────────────────────────
+  const events = slots.map((s: any) => ({
+    id: s.id,
+    title: s.creator.id === user?.id
+      ? `🧠 Mon créneau · ${s.duration}min`
+      : `${s.creator.name} · ${s.duration}min`,
+    start: s.startTime,
+    end: new Date(new Date(s.startTime).getTime() + s.duration * 60000).toISOString(),
+    backgroundColor: slotColor(s.status),
+    borderColor: slotColor(s.status),
+    extendedProps: s,
+  }));
 
-  // Chercher un Body Double
-  const handleFindBodyDouble = () => {
-    setShowMatchModal(true);
-    setMatchState('searching');
-    getSocket().emit('match:searching', { duration: 25, quietMode: false, cameraOff: false });
-    setTimeout(() => {
-      if (matchState !== 'found') setMatchState('idle');
-    }, 90000);
-  };
+  const confirmed = mySlots.filter((s: any) => s.status === 'CONFIRMED');
+  const created   = mySlots.filter((s: any) => s.status !== 'CONFIRMED' && s.creatorId === user?.id);
 
-  // Créer un événement depuis le calendrier
-  const handleDateSelect = (selectInfo: any) => {
-    setSelectedSlot({ start: selectInfo.start, end: selectInfo.end });
-    setShowCreateModal(true);
-  };
-
-  // Créer une session depuis template
-  const createSession = (template: typeof SESSION_TEMPLATES[0]) => {
-    if (!selectedSlot) return;
-    const end = new Date(selectedSlot.start.getTime() + template.duration * 60000);
-    const newEvent = {
-      id: Date.now().toString(),
-      title: `${template.icon} ${template.label} — Toi`,
-      start: selectedSlot.start.toISOString(),
-      end: end.toISOString(),
-      backgroundColor: template.color,
-      borderColor: template.color,
-    };
-    setCalendarEvents(prev => [...prev, newEvent]);
-    setShowCreateModal(false);
-    addActivity(`Tu as créé une session ${template.label} de ${template.duration} min`);
-  };
-
-  const addActivity = (message: string) => {
-    setActivities(prev => [{
-      id: Date.now().toString(), type: 'session_created', message, time: 'À l\'instant'
-    }, ...prev.slice(0, 9)]);
-  };
-
-  const toggleObjective = (id: string) => {
-    setObjectives(prev => prev.map(o => o.id === id ? { ...o, done: !o.done } : o));
-  };
-
-  const addObjective = () => {
-    if (!newObjective.trim()) return;
-    setObjectives(prev => [...prev, { id: Date.now().toString(), text: newObjective, done: false }]);
-    setNewObjective('');
-  };
-
-  const doneCount = objectives.filter(o => o.done).length;
-  const objectivePercent = objectives.length ? Math.round((doneCount / objectives.length) * 100) : 0;
+  const canJoin = (s: any) => Math.abs(new Date().getTime() - new Date(s.startTime).getTime()) < 15 * 60000;
 
   return (
-    <div className="flex flex-col h-full bg-gray-50">
+    <div className="flex h-full bg-gray-50 overflow-hidden">
+      <SlotNotifications />
 
-      {/* ── Top Bar ── */}
-      <div className="bg-white border-b border-gray-100 px-6 py-3 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-black text-gray-900">
-            Bonjour {user?.name} 👋
-          </h1>
-          <p className="text-sm text-gray-500">
-            {stats.streak} jours consécutifs 🔥 · Objectif du jour : {stats.goalPercent}% atteint
+      {/* ── COLONNE GAUCHE ──────────────────────────────────────────────────── */}
+      <aside className="w-72 bg-white border-r border-gray-100 flex flex-col overflow-y-auto shrink-0">
+        {/* Header user */}
+        <div className="p-5 border-b border-gray-100">
+          <h2 className="font-black text-gray-900">Bonjour {user?.name?.split(' ')[0]} 👋</h2>
+          <p className="text-xs text-gray-400 mt-0.5">
+            {new Date().toLocaleDateString('fr', { weekday: 'long', day: 'numeric', month: 'long' })}
           </p>
         </div>
 
-        {/* Bouton principal */}
-        <motion.button
-          whileHover={{ scale: 1.03 }}
-          whileTap={{ scale: 0.97 }}
-          onClick={handleFindBodyDouble}
-          className="bg-teal-500 text-white font-black px-8 py-3 rounded-2xl text-lg shadow-lg shadow-teal-200 hover:bg-teal-600 transition-colors flex items-center gap-3"
-        >
-          <span className="text-2xl">🧠</span>
-          J'ai besoin d'un Body Double
-        </motion.button>
+        {/* Sessions confirmées */}
+        <div className="p-4">
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-3">
+            ✅ Sessions confirmées ({confirmed.length})
+          </p>
+          {confirmed.length === 0
+            ? <p className="text-xs text-gray-400 italic">Aucune session confirmée</p>
+            : confirmed.map((s: any) => {
+                const partner = s.creatorId === user?.id ? s.partner : s.creator;
+                const start = new Date(s.startTime);
+                const joinable = canJoin(s);
+                return (
+                  <motion.div key={s.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
+                    className="bg-teal-50 border border-teal-200 rounded-xl p-3 mb-2">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-8 h-8 bg-teal-500 rounded-full flex items-center justify-center text-white text-xs font-black">
+                        {partner?.name?.[0]?.toUpperCase() || '?'}
+                      </div>
+                      <div>
+                        <p className="font-bold text-sm text-gray-900">{partner?.name || 'Partenaire'}</p>
+                        <p className="text-xs text-gray-500">
+                          {start.toLocaleDateString('fr', { weekday: 'short', day: 'numeric' })}
+                          {' · '}
+                          {start.toLocaleTimeString('fr', { hour: '2-digit', minute: '2-digit' })}
+                          {' · '}{s.duration}min
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => navigate(`/live/${s.id}`)}
+                      disabled={!joinable}
+                      className={`w-full py-2 rounded-xl text-xs font-black transition-colors ${
+                        joinable ? 'bg-teal-500 text-white hover:bg-teal-600' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      }`}
+                    >
+                      {joinable ? '🎥 Rejoindre le Live' : `⏰ ${start.toLocaleTimeString('fr', { hour: '2-digit', minute: '2-digit' })}`}
+                    </button>
+                  </motion.div>
+                );
+              })
+          }
+        </div>
 
-        {/* Notifications */}
-        <div className="flex items-center gap-3">
-          <div className="relative cursor-pointer">
-            <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center text-lg hover:bg-gray-200 transition-colors">🔔</div>
-            <span className="absolute -top-1 -right-1 w-5 h-5 bg-teal-500 text-white text-xs rounded-full flex items-center justify-center font-bold">3</span>
+        {/* Mes créneaux créés */}
+        <div className="p-4 border-t border-gray-100">
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-3">
+            🧠 Mes créneaux ({created.length})
+          </p>
+          {created.length === 0
+            ? <p className="text-xs text-gray-400 italic">Clique sur le calendrier pour créer un créneau</p>
+            : created.map((s: any) => {
+                const slotCandidates = [
+                  ...(candidates[s.id] || []),
+                  ...(s.requests || []).map((r: any) => r.user),
+                ].filter((v, i, a) => a.findIndex((x: any) => x.id === v.id) === i);
+
+                return (
+                  <motion.div key={s.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
+                    className="bg-white border border-gray-100 rounded-xl p-3 mb-2">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-sm font-bold text-gray-900">
+                        {new Date(s.startTime).toLocaleTimeString('fr', { hour: '2-digit', minute: '2-digit' })} · {s.duration}min
+                      </p>
+                      <StatusBadge status={s.status} />
+                    </div>
+
+                    {slotCandidates.length > 0 && (
+                      <div className="mb-2 space-y-1">
+                        <p className="text-xs text-gray-500 mb-1">
+                          {slotCandidates.length} candidat{slotCandidates.length > 1 ? 's' : ''} — choisis :
+                        </p>
+                        {slotCandidates.map((c: any) => (
+                          <div key={c.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-2 py-1.5">
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-6 h-6 bg-teal-100 rounded-full flex items-center justify-center text-teal-600 text-xs font-black">
+                                {c.name[0].toUpperCase()}
+                              </div>
+                              <div>
+                                <p className="text-xs font-semibold text-gray-800">{c.name}</p>
+                                {c.tdahType && <p className="text-xs text-gray-400">{c.tdahType.replace(/_/g, ' ')}</p>}
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => confirmCandidate.mutate({ slotId: s.id, candidateId: c.id })}
+                              disabled={s.status === 'CONFIRMED' || confirmCandidate.isPending}
+                              className="text-xs bg-teal-500 text-white px-2 py-1 rounded-lg hover:bg-teal-600 disabled:opacity-40 font-bold"
+                            >
+                              Confirmer
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <button onClick={() => cancelSlot.mutate(s.id)}
+                      className="text-xs text-gray-400 hover:text-red-500 transition-colors">
+                      Annuler le créneau
+                    </button>
+                  </motion.div>
+                );
+              })
+          }
+        </div>
+
+        {/* En attente de réponse */}
+        {pending.length > 0 && (
+          <div className="p-4 border-t border-gray-100">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-3">
+              ⏳ J'attends une réponse ({pending.length})
+            </p>
+            {pending.map((r: any) => (
+              <div key={r.id} className="bg-amber-50 border border-amber-100 rounded-xl p-3 mb-2">
+                <p className="text-xs font-bold text-gray-900">
+                  {new Date(r.slot.startTime).toLocaleDateString('fr', { weekday: 'short', day: 'numeric' })}
+                  {' · '}
+                  {new Date(r.slot.startTime).toLocaleTimeString('fr', { hour: '2-digit', minute: '2-digit' })}
+                  {' · '}{r.slot.duration}min
+                </p>
+                <p className="text-xs text-gray-500 mt-0.5">Par {r.slot.creator.name}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </aside>
+
+      {/* ── CALENDRIER ──────────────────────────────────────────────────────── */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="bg-white border-b border-gray-100 px-6 py-3 flex items-center justify-between">
+          <div>
+            <h1 className="font-black text-gray-900 text-lg">Calendrier des sessions</h1>
+            <div className="flex gap-4 mt-1">
+              {[
+                { color: 'bg-teal-500', label: 'Disponible' },
+                { color: 'bg-amber-400', label: 'Demandes en cours' },
+                { color: 'bg-red-500', label: 'Complet' },
+              ].map(l => (
+                <span key={l.label} className="flex items-center gap-1.5 text-xs text-gray-500">
+                  <span className={`w-2.5 h-2.5 rounded-full ${l.color}`}/>
+                  {l.label}
+                </span>
+              ))}
+            </div>
+          </div>
+          <p className="text-xs text-gray-400 bg-gray-50 rounded-xl px-3 py-2">
+            💡 Clique sur le calendrier pour créer un créneau
+          </p>
+        </div>
+
+        <div className="flex-1 overflow-auto p-4">
+          <div className="h-full bg-white rounded-2xl border border-gray-100 overflow-hidden" style={{ minHeight: 500 }}>
+            <FullCalendar
+              ref={calendarRef}
+              plugins={[timeGridPlugin, dayGridPlugin, interactionPlugin]}
+              initialView="timeGridWeek"
+              locale="fr"
+              headerToolbar={{
+                left: 'prev,next today',
+                center: 'title',
+                right: 'timeGridDay,timeGridWeek,dayGridMonth',
+              }}
+              slotMinTime="07:00:00"
+              slotMaxTime="23:00:00"
+              allDaySlot={false}
+              selectable={true}
+              selectMirror={true}
+              nowIndicator={true}
+              events={events}
+              height="100%"
+              select={(info) => {
+                setCreateModal({ start: info.start });
+                setDuration(25);
+              }}
+              eventClick={(info) => {
+                const slot = info.event.extendedProps;
+                if (slot.creatorId === user?.id) {
+                  setDetailModal(slot);
+                } else if (slot.status === 'OPEN' || slot.status === 'PENDING') {
+                  setJoinModal(slot);
+                }
+              }}
+              eventContent={(arg) => (
+                <div className="px-1.5 py-0.5 overflow-hidden">
+                  <p className="text-xs font-bold text-white truncate">{arg.event.title}</p>
+                </div>
+              )}
+            />
           </div>
         </div>
       </div>
 
-      {/* ── Corps principal ── */}
-      <div className="flex flex-1 overflow-hidden gap-0">
+      {/* ── MODAL — CRÉER UN CRÉNEAU ─────────────────────────────────────────── */}
+      <AnimatePresence>
+        {createModal && (
+          <motion.div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={() => setCreateModal(null)}>
+            <motion.div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl"
+              initial={{ scale: 0.95, y: 10 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 10 }}
+              onClick={e => e.stopPropagation()}>
+              <h3 className="font-black text-gray-900 text-xl mb-1">Créer un créneau</h3>
+              <p className="text-sm text-gray-500 mb-5">
+                📅 {createModal.start.toLocaleDateString('fr', { weekday: 'long', day: 'numeric', month: 'long' })}
+                {' · '}
+                {createModal.start.toLocaleTimeString('fr', { hour: '2-digit', minute: '2-digit' })}
+              </p>
 
-        {/* ── Colonne gauche : Utilisateurs en ligne ── */}
-        <div className="w-64 bg-white border-r border-gray-100 flex flex-col overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100">
-            <div className="flex items-center justify-between">
-              <h2 className="font-bold text-sm text-gray-700">En ligne maintenant</h2>
-              <span className="bg-teal-100 text-teal-700 text-xs font-bold px-2 py-0.5 rounded-full">
-                {onlineUsers.filter(u => u.status !== 'offline').length}
-              </span>
-            </div>
-          </div>
-          <div className="flex-1 overflow-y-auto p-2 space-y-1">
-            {onlineUsers.map(u => (
-              <motion.div
-                key={u.id}
-                whileHover={{ backgroundColor: '#F0FDFA' }}
-                className="p-3 rounded-xl cursor-pointer transition-colors"
-                onClick={() => setSelectedProfile({
-                  id: u.id, name: u.name, totalFocusMin: 245, totalSessions: 18, level: 3,
-                  badges: ['🌱', '⭐', '🧠'], availability: 'Matin & soir',
-                  interests: ['Travail', 'Études'], recentSessions: u.sessionsToday,
-                })}
-              >
-                <div className="flex items-center gap-2">
-                  <div className="relative flex-shrink-0">
-                    <div className="w-9 h-9 bg-teal-100 rounded-full flex items-center justify-center font-bold text-teal-600 text-sm">
-                      {u.name[0]}
-                    </div>
-                    <span className="absolute -bottom-0.5 -right-0.5 text-xs">{STATUS_CONFIG[u.status].dot}</span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-sm text-gray-900 truncate">{u.name}</p>
-                    <p className="text-xs text-gray-500 truncate">{STATUS_CONFIG[u.status].label}</p>
-                  </div>
-                </div>
-                <div className="flex justify-between mt-2 text-xs text-gray-400">
-                  <span>Depuis {u.connectedSince}</span>
-                  <span>{u.sessionsToday} sessions</span>
-                </div>
-                {/* Actions rapides */}
-                <div className="flex gap-1 mt-2">
-                  <button className="flex-1 text-xs bg-teal-50 text-teal-600 py-1 rounded-lg hover:bg-teal-100 transition-colors font-medium">
-                    Inviter
+              <p className="text-sm font-bold text-gray-700 mb-3">Durée de la session</p>
+              <div className="grid grid-cols-4 gap-2 mb-6">
+                {DURATIONS.map(d => (
+                  <button key={d} onClick={() => setDuration(d)}
+                    className={`py-3 rounded-xl text-sm font-black transition-colors ${
+                      duration === d ? 'bg-teal-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}>
+                    {d}min
                   </button>
-                  {u.status === 'available' && (
-                    <button className="flex-1 text-xs bg-violet-50 text-violet-600 py-1 rounded-lg hover:bg-violet-100 transition-colors font-medium">
-                      Rejoindre
+                ))}
+              </div>
+
+              <button
+                onClick={() => createSlot.mutate({ startTime: createModal.start.toISOString(), duration })}
+                disabled={createSlot.isPending}
+                className="w-full bg-teal-500 text-white font-black py-4 rounded-xl hover:bg-teal-600 transition-colors disabled:opacity-50 text-base"
+              >
+                {createSlot.isPending ? '⏳ Création...' : '✅ Créer ce créneau'}
+              </button>
+              {createSlot.isError && (
+                <p className="text-red-500 text-xs mt-2 text-center">
+                  {(createSlot.error as any)?.response?.data?.error}
+                </p>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── MODAL — REJOINDRE ─────────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {joinModal && (
+          <motion.div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={() => setJoinModal(null)}>
+            <motion.div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl"
+              initial={{ scale: 0.95, y: 10 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 10 }}
+              onClick={e => e.stopPropagation()}>
+              <h3 className="font-black text-gray-900 text-xl mb-4">Rejoindre ce créneau</h3>
+
+              <div className="bg-gray-50 rounded-xl p-4 mb-4">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-11 h-11 bg-teal-100 rounded-full flex items-center justify-center font-black text-teal-600 text-lg">
+                    {joinModal.creator?.name?.[0]?.toUpperCase()}
+                  </div>
+                  <div>
+                    <p className="font-black text-gray-900">{joinModal.creator?.name}</p>
+                    <p className="text-xs text-gray-400">{joinModal.creator?.tdahType?.replace(/_/g, ' ') || 'TDAH'}</p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-3 text-sm text-gray-600">
+                  <span>📅 {new Date(joinModal.startTime).toLocaleDateString('fr', { weekday: 'short', day: 'numeric', month: 'short' })}</span>
+                  <span>⏰ {new Date(joinModal.startTime).toLocaleTimeString('fr', { hour: '2-digit', minute: '2-digit' })}</span>
+                  <span>⏱️ {joinModal.duration}min</span>
+                </div>
+              </div>
+
+              {joinModal.status === 'PENDING' && (
+                <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 mb-4 text-sm text-amber-700">
+                  ⚠️ D'autres personnes ont demandé ce créneau. Le créateur choisit son partenaire.
+                </div>
+              )}
+
+              <p className="text-xs text-gray-400 mb-4 text-center">
+                Ta demande est envoyée à <strong>{joinModal.creator?.name}</strong>.<br />
+                Il confirmera ou non.
+              </p>
+
+              <button
+                onClick={() => requestSlot.mutate(joinModal.id)}
+                disabled={requestSlot.isPending}
+                className="w-full bg-teal-500 text-white font-black py-4 rounded-xl hover:bg-teal-600 transition-colors disabled:opacity-50 text-base"
+              >
+                {requestSlot.isPending ? '⏳ Envoi...' : '✋ Envoyer ma demande'}
+              </button>
+              {requestSlot.isError && (
+                <p className="text-red-500 text-xs mt-2 text-center">
+                  {(requestSlot.error as any)?.response?.data?.error}
+                </p>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── MODAL — DÉTAIL MON CRÉNEAU + CANDIDATS ──────────────────────────── */}
+      <AnimatePresence>
+        {detailModal && (
+          <motion.div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={() => setDetailModal(null)}>
+            <motion.div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl"
+              initial={{ scale: 0.95, y: 10 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 10 }}
+              onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="font-black text-gray-900 text-xl">Mon créneau</h3>
+                <StatusBadge status={detailModal.status} />
+              </div>
+              <p className="text-sm text-gray-500 mb-5">
+                📅 {new Date(detailModal.startTime).toLocaleDateString('fr', { weekday: 'long', day: 'numeric', month: 'long' })}
+                {' · '}
+                {new Date(detailModal.startTime).toLocaleTimeString('fr', { hour: '2-digit', minute: '2-digit' })}
+                {' · '}{detailModal.duration}min
+              </p>
+
+              {detailModal.status === 'CONFIRMED' ? (
+                <div className="bg-teal-50 rounded-xl p-5 text-center">
+                  <div className="text-4xl mb-2">✅</div>
+                  <p className="font-bold text-teal-700 mb-1">Session confirmée avec</p>
+                  <p className="font-black text-teal-900 text-lg">{detailModal.partner?.name}</p>
+                  {canJoin(detailModal) && (
+                    <button onClick={() => navigate(`/live/${detailModal.id}`)}
+                      className="mt-4 bg-teal-500 text-white font-black px-6 py-3 rounded-xl hover:bg-teal-600 transition-colors">
+                      🎥 Rejoindre le Live
                     </button>
                   )}
                 </div>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-
-        {/* ── Centre : Calendrier ── */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <div className="flex-1 overflow-auto p-4">
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden h-full">
-              <FullCalendar
-                ref={calendarRef}
-                plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-                initialView="timeGridDay"
-                headerToolbar={{
-                  left: 'prev,next today',
-                  center: 'title',
-                  right: 'dayGridMonth,timeGridWeek,timeGridDay',
-                }}
-                locale="fr"
-                buttonText={{ today: "Aujourd'hui", month: 'Mois', week: 'Semaine', day: 'Jour' }}
-                slotMinTime="07:00:00"
-                slotMaxTime="22:00:00"
-                allDaySlot={false}
-                editable={true}
-                selectable={true}
-                selectMirror={true}
-                events={calendarEvents}
-                select={handleDateSelect}
-                eventClick={(info) => {
-                  alert(`Session : ${info.event.title}\nDébut : ${info.event.start?.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}\nFin : ${info.event.end?.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`);
-                }}
-                eventDrop={(info) => {
-                  setCalendarEvents(prev => prev.map(e =>
-                    e.id === info.event.id ? { ...e, start: info.event.start!.toISOString(), end: info.event.end!.toISOString() } : e
-                  ));
-                }}
-                eventResize={(info) => {
-                  setCalendarEvents(prev => prev.map(e =>
-                    e.id === info.event.id ? { ...e, end: info.event.end!.toISOString() } : e
-                  ));
-                }}
-                height="100%"
-                expandRows={true}
-                nowIndicator={true}
-                slotLabelFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}
-                eventTimeFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* ── Colonne droite : Stats + Objectifs + Activité ── */}
-        <div className="w-72 bg-white border-l border-gray-100 overflow-y-auto flex flex-col">
-
-          {/* Stats du jour */}
-          <div className="p-4 border-b border-gray-100">
-            <h2 className="font-bold text-sm text-gray-700 mb-3">📊 Mes stats du jour</h2>
-            <div className="grid grid-cols-2 gap-2">
-              {[
-                { val: `${Math.floor(stats.focusMin / 60)}h${stats.focusMin % 60}m`, label: 'Focus', icon: '⏱️', color: 'bg-teal-50 text-teal-700' },
-                { val: stats.sessions, label: 'Sessions', icon: '🧠', color: 'bg-violet-50 text-violet-700' },
-                { val: stats.tasks, label: 'Tâches', icon: '✅', color: 'bg-amber-50 text-amber-700' },
-                { val: `${stats.streak}j`, label: 'Série', icon: '🔥', color: 'bg-red-50 text-red-700' },
-              ].map(s => (
-                <div key={s.label} className={`${s.color} rounded-xl p-3 text-center`}>
-                  <div className="text-lg mb-0.5">{s.icon}</div>
-                  <div className="font-black text-lg">{s.val}</div>
-                  <div className="text-xs opacity-70">{s.label}</div>
+              ) : (detailModal.requests || []).length === 0 ? (
+                <div className="text-center py-10 text-gray-400">
+                  <div className="text-5xl mb-3">⏳</div>
+                  <p className="text-sm font-medium">En attente de candidats...</p>
+                  <p className="text-xs mt-1">Les demandes apparaîtront ici en temps réel</p>
                 </div>
-              ))}
-            </div>
-
-            {/* Objectif quotidien */}
-            <div className="mt-3">
-              <div className="flex justify-between text-xs text-gray-500 mb-1">
-                <span>Objectif quotidien</span>
-                <span className="font-bold text-teal-600">{stats.goalPercent}%</span>
-              </div>
-              <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: `${stats.goalPercent}%` }}
-                  transition={{ duration: 1 }}
-                  className="h-full bg-teal-500 rounded-full"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* KPIs */}
-          <div className="p-4 border-b border-gray-100">
-            <h2 className="font-bold text-sm text-gray-700 mb-3">🎯 Productivité</h2>
-            <div className="space-y-2">
-              {[
-                { label: 'Durée moy. session', val: `${stats.avgSession} min` },
-                { label: 'Taux de réussite', val: `${stats.successRate}%` },
-                { label: 'Partenaires aujourd\'hui', val: stats.partners },
-                { label: 'Niveau d\'énergie', val: '⚡'.repeat(stats.energyLevel) },
-              ].map(k => (
-                <div key={k.label} className="flex justify-between items-center text-sm">
-                  <span className="text-gray-500">{k.label}</span>
-                  <span className="font-bold text-gray-900">{k.val}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Objectifs du jour */}
-          <div className="p-4 border-b border-gray-100">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="font-bold text-sm text-gray-700">🎯 Objectifs du jour</h2>
-              <span className="text-xs font-bold text-teal-600">{doneCount}/{objectives.length}</span>
-            </div>
-
-            {/* Barre de progression */}
-            <div className="h-1.5 bg-gray-100 rounded-full mb-3 overflow-hidden">
-              <motion.div
-                animate={{ width: `${objectivePercent}%` }}
-                className="h-full bg-teal-500 rounded-full"
-              />
-            </div>
-
-            <div className="space-y-2">
-              {objectives.map(obj => (
-                <label key={obj.id} className="flex items-start gap-2 cursor-pointer group">
-                  <input
-                    type="checkbox"
-                    checked={obj.done}
-                    onChange={() => toggleObjective(obj.id)}
-                    className="mt-0.5 w-4 h-4 accent-teal-500 rounded"
-                  />
-                  <span className={`text-sm ${obj.done ? 'line-through text-gray-400' : 'text-gray-700'}`}>
-                    {obj.text}
-                  </span>
-                </label>
-              ))}
-            </div>
-
-            {/* Ajouter un objectif */}
-            <div className="flex gap-1 mt-3">
-              <input
-                value={newObjective}
-                onChange={e => setNewObjective(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && addObjective()}
-                placeholder="Ajouter un objectif..."
-                className="flex-1 text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:border-teal-400 focus:outline-none"
-              />
-              <button
-                onClick={addObjective}
-                className="bg-teal-500 text-white text-xs px-2 py-1.5 rounded-lg hover:bg-teal-600 transition-colors font-bold"
-              >
-                +
-              </button>
-            </div>
-          </div>
-
-          {/* Activité en direct */}
-          <div className="p-4 flex-1">
-            <h2 className="font-bold text-sm text-gray-700 mb-3">⚡ Activité en direct</h2>
-            <div className="space-y-3">
-              {activities.map(a => (
-                <motion.div
-                  key={a.id}
-                  initial={{ opacity: 0, x: 10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  className="flex gap-2"
-                >
-                  <div className="w-1.5 h-1.5 bg-teal-400 rounded-full mt-2 flex-shrink-0" />
-                  <div>
-                    <p className="text-xs text-gray-700">{a.message}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">{a.time}</p>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Modal : Créer une session depuis le calendrier ── */}
-      <AnimatePresence>
-        {showCreateModal && selectedSlot && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
-            onClick={() => setShowCreateModal(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 20 }}
-              className="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl"
-              onClick={e => e.stopPropagation()}
-            >
-              <h2 className="text-xl font-black mb-2">Créer une session</h2>
-              <p className="text-gray-500 text-sm mb-6">
-                {selectedSlot.start.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} →{' '}
-                {selectedSlot.end.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-              </p>
-
-              <p className="font-semibold text-sm text-gray-700 mb-3">Modèle rapide :</p>
-              <div className="grid grid-cols-3 gap-2 mb-4">
-                {SESSION_TEMPLATES.map(t => (
-                  <button
-                    key={t.duration}
-                    onClick={() => createSession(t)}
-                    className="p-3 rounded-xl border-2 border-gray-100 hover:border-teal-300 hover:bg-teal-50 transition-all text-center"
-                  >
-                    <div className="text-2xl">{t.icon}</div>
-                    <div className="font-bold text-xs mt-1">{t.label}</div>
-                    <div className="text-gray-400 text-xs">{t.duration} min</div>
-                  </button>
-                ))}
-                <button
-                  onClick={() => createSession({ label: 'Perso', duration: 30, color: '#6B7280', icon: '⏰' })}
-                  className="p-3 rounded-xl border-2 border-dashed border-gray-200 hover:border-teal-300 hover:bg-teal-50 transition-all text-center"
-                >
-                  <div className="text-2xl">⏰</div>
-                  <div className="font-bold text-xs mt-1">Perso</div>
-                  <div className="text-gray-400 text-xs">Durée libre</div>
-                </button>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2 mt-2">
-                {[
-                  { label: '🔒 Privée', desc: 'Invitation seule' },
-                  { label: '🌐 Publique', desc: 'Tout le monde' },
-                  { label: '👥 Groupe', desc: 'Plusieurs pers.' },
-                ].map(t => (
-                  <button key={t.label} className="p-2 rounded-xl border border-gray-100 hover:bg-gray-50 text-xs text-center transition-colors">
-                    <div className="font-semibold">{t.label}</div>
-                    <div className="text-gray-400">{t.desc}</div>
-                  </button>
-                ))}
-              </div>
-
-              <button onClick={() => setShowCreateModal(false)} className="w-full mt-4 text-gray-400 text-sm">
-                Annuler
-              </button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* ── Modal : Recherche Body Double ── */}
-      <AnimatePresence>
-        {showMatchModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
-          >
-            <motion.div
-              initial={{ scale: 0.9 }}
-              animate={{ scale: 1 }}
-              exit={{ scale: 0.9 }}
-              className="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl text-center"
-            >
-              {matchState === 'searching' && (
-                <>
-                  <div className="w-20 h-20 border-4 border-teal-500 border-t-transparent rounded-full animate-spin mx-auto mb-6" />
-                  <h2 className="text-2xl font-black mb-2">Recherche en cours...</h2>
-                  <p className="text-gray-500 mb-4">On cherche le partenaire TDAH parfait pour toi</p>
-
-                  {/* Partenaires disponibles */}
-                  <div className="bg-teal-50 rounded-2xl p-4 mb-6">
-                    <p className="text-sm font-semibold text-teal-700 mb-3">Disponibles maintenant :</p>
-                    <div className="flex justify-center gap-3">
-                      {onlineUsers.filter(u => u.status === 'available').map(u => (
-                        <button
-                          key={u.id}
-                          onClick={() => { setShowMatchModal(false); navigate('/session/demo'); }}
-                          className="flex flex-col items-center gap-1 hover:scale-105 transition-transform"
-                        >
-                          <div className="w-10 h-10 bg-teal-200 rounded-full flex items-center justify-center font-bold text-teal-700">
-                            {u.name[0]}
+              ) : (
+                <div>
+                  <p className="text-sm font-bold text-gray-700 mb-3">
+                    {detailModal.requests.length} candidat{detailModal.requests.length > 1 ? 's' : ''} — Choisis ton partenaire :
+                  </p>
+                  <div className="space-y-2 max-h-72 overflow-y-auto">
+                    {detailModal.requests.map((r: any) => (
+                      <div key={r.id}
+                        className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3 hover:bg-teal-50 transition-colors">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-teal-100 rounded-full flex items-center justify-center font-black text-teal-600">
+                            {r.user?.name?.[0]?.toUpperCase()}
                           </div>
-                          <span className="text-xs font-medium">{u.name}</span>
+                          <div>
+                            <p className="font-bold text-sm text-gray-900">{r.user?.name}</p>
+                            <p className="text-xs text-gray-400">{r.user?.tdahType?.replace(/_/g, ' ') || 'TDAH'}</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => confirmCandidate.mutate({ slotId: detailModal.id, candidateId: r.user.id })}
+                          disabled={confirmCandidate.isPending}
+                          className="bg-teal-500 text-white text-sm font-black px-4 py-2.5 rounded-xl hover:bg-teal-600 transition-colors disabled:opacity-50"
+                        >
+                          Confirmer ✓
                         </button>
-                      ))}
-                    </div>
+                      </div>
+                    ))}
                   </div>
-
-                  <button
-                    onClick={() => { setShowMatchModal(false); setMatchState('idle'); getSocket().emit('match:cancel'); }}
-                    className="text-gray-400 hover:text-gray-600 text-sm"
-                  >
-                    Annuler
-                  </button>
-                </>
+                </div>
               )}
-              {matchState === 'found' && (
-                <>
-                  <div className="text-6xl mb-4">🎉</div>
-                  <h2 className="text-2xl font-black text-teal-600">Partenaire trouvé !</h2>
-                  <p className="text-gray-500">Connexion en cours...</p>
-                </>
-              )}
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
-      {/* ── Panneau profil utilisateur ── */}
-      <AnimatePresence>
-        {selectedProfile && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/30 z-50 flex items-center justify-end"
-            onClick={() => setSelectedProfile(null)}
-          >
-            <motion.div
-              initial={{ x: 400 }}
-              animate={{ x: 0 }}
-              exit={{ x: 400 }}
-              className="bg-white h-full w-80 shadow-2xl p-6 overflow-y-auto"
-              onClick={e => e.stopPropagation()}
-            >
-              <button onClick={() => setSelectedProfile(null)} className="text-gray-400 hover:text-gray-600 mb-4">
-                ✕ Fermer
+              <button onClick={() => setDetailModal(null)}
+                className="mt-4 w-full text-gray-400 hover:text-gray-600 text-sm py-2 transition-colors">
+                Fermer
               </button>
-
-              <div className="text-center mb-6">
-                <div className="w-20 h-20 bg-teal-100 rounded-full flex items-center justify-center text-3xl font-black text-teal-600 mx-auto mb-3">
-                  {selectedProfile.name[0]}
-                </div>
-                <h2 className="text-xl font-black">{selectedProfile.name}</h2>
-                <p className="text-teal-600 font-semibold">Niveau {selectedProfile.level}</p>
-                <div className="flex justify-center gap-1 mt-2 text-2xl">
-                  {selectedProfile.badges.map((b, i) => <span key={i}>{b}</span>)}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 mb-6">
-                {[
-                  { val: `${Math.floor(selectedProfile.totalFocusMin / 60)}h`, label: 'Focus total', icon: '⏱️' },
-                  { val: selectedProfile.totalSessions, label: 'Sessions', icon: '🧠' },
-                  { val: selectedProfile.recentSessions, label: "Aujourd'hui", icon: '📅' },
-                  { val: selectedProfile.level, label: 'Niveau', icon: '⭐' },
-                ].map(s => (
-                  <div key={s.label} className="bg-gray-50 rounded-xl p-3 text-center">
-                    <div>{s.icon}</div>
-                    <div className="font-black text-lg">{s.val}</div>
-                    <div className="text-xs text-gray-500">{s.label}</div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="mb-4">
-                <p className="text-sm font-semibold text-gray-700 mb-1">🕐 Disponibilité habituelle</p>
-                <p className="text-sm text-gray-500">{selectedProfile.availability}</p>
-              </div>
-
-              <div className="mb-6">
-                <p className="text-sm font-semibold text-gray-700 mb-2">🎯 Centres d'intérêt</p>
-                <div className="flex flex-wrap gap-2">
-                  {selectedProfile.interests.map(i => (
-                    <span key={i} className="bg-teal-50 text-teal-700 text-xs px-3 py-1 rounded-full font-medium">{i}</span>
-                  ))}
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <button
-                  onClick={() => { setSelectedProfile(null); navigate('/session/demo'); }}
-                  className="w-full bg-teal-500 text-white font-bold py-3 rounded-xl hover:bg-teal-600 transition-colors"
-                >
-                  🚀 Démarrer une session
-                </button>
-                <button className="w-full bg-violet-50 text-violet-600 font-bold py-3 rounded-xl hover:bg-violet-100 transition-colors">
-                  ✉️ Envoyer une invitation
-                </button>
-                <button className="w-full bg-gray-50 text-gray-600 font-bold py-3 rounded-xl hover:bg-gray-100 transition-colors">
-                  💬 Démarrer un chat
-                </button>
-              </div>
             </motion.div>
           </motion.div>
         )}

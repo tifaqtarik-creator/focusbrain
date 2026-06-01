@@ -11,6 +11,7 @@ import userRoutes from './routes/users';
 import matchingRoutes from './routes/matching';
 import forumRoutes from './routes/forum';
 import subscriptionRoutes from './routes/subscriptions';
+import slotRoutes from './routes/slots';
 import { registerSocketHandlers } from './socket/handlers';
 import { authMiddleware } from './middleware/auth';
 import { rateLimiter } from './middleware/rateLimit';
@@ -20,15 +21,19 @@ dotenv.config();
 const app = express();
 const httpServer = createServer(app);
 
+const ALLOWED_ORIGINS = [
+  process.env.FRONTEND_URL || 'http://localhost:5173',
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost:5175',
+];
+
 const io = new Server(httpServer, {
-  cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
-    credentials: true,
-  },
+  cors: { origin: ALLOWED_ORIGINS, credentials: true },
 });
 
 app.use(helmet());
-app.use(cors({ origin: process.env.FRONTEND_URL || 'http://localhost:5173', credentials: true }));
+app.use(cors({ origin: ALLOWED_ORIGINS, credentials: true }));
 app.use(express.json({ limit: '10mb' }));
 app.use(rateLimiter);
 
@@ -38,8 +43,12 @@ app.use('/api/users', authMiddleware, userRoutes);
 app.use('/api/matching', authMiddleware, matchingRoutes);
 app.use('/api/forum', authMiddleware, forumRoutes);
 app.use('/api/subscriptions', authMiddleware, subscriptionRoutes);
+app.use('/api/slots', authMiddleware, slotRoutes);
 
 app.get('/health', (_req, res) => res.json({ status: 'ok', service: 'focusbrain-api' }));
+
+// Exposer io aux routes
+app.set('io', io);
 
 registerSocketHandlers(io);
 

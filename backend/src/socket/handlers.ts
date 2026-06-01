@@ -34,6 +34,9 @@ export function registerSocketHandlers(io: Server) {
     const userId = (socket as any).userId as string;
     console.log(`🔌 User connected: ${userId}`);
 
+    // Rejoindre sa room personnelle pour recevoir les notifications
+    socket.join(`user:${userId}`);
+
     // Notifier le cercle que l'utilisateur est en ligne
     notifyCircle(io, userId, socket.id);
 

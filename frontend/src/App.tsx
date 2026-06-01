@@ -11,6 +11,7 @@ import Circle from './pages/Circle';
 import Community from './pages/Community';
 import Settings from './pages/Settings';
 import Pricing from './pages/Pricing';
+import LiveSession from './pages/LiveSession';
 import Layout from './components/layout/Layout';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -33,6 +34,7 @@ export default function App() {
           <Route element={<PrivateRoute><Layout /></PrivateRoute>}>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/session/:id" element={<Session />} />
+            <Route path="/live/:slotId" element={<LiveSession />} />
             <Route path="/solo/:duration" element={<SoloSession />} />
             <Route path="/profile/me" element={<Profile />} />
             <Route path="/circle" element={<Circle />} />

@@ -85,6 +85,9 @@ model User {
   subscription    Subscription?
   coachProfile    CoachProfile?
   refreshTokens   RefreshToken[]
+  slotsCreated    Slot[]         @relation("SlotCreator")
+  slotsJoined     Slot[]         @relation("SlotPartner")
+  slotRequests    SlotRequest[]
 
   @@map("users")
 }
@@ -211,6 +214,37 @@ model CoachProfile {
   user User @relation(fields: [userId], references: [id])
 
   @@map("coach_profiles")
+}
+
+model Slot {
+  id           String   @id @default(cuid())
+  creatorId    String
+  partnerId    String?
+  startTime    DateTime
+  duration     Int
+  status       String   @default("OPEN")
+  liveRoomName String?
+  createdAt    DateTime @default(now())
+
+  creator  User          @relation("SlotCreator", fields: [creatorId], references: [id])
+  partner  User?         @relation("SlotPartner", fields: [partnerId], references: [id])
+  requests SlotRequest[]
+
+  @@map("slots")
+}
+
+model SlotRequest {
+  id        String   @id @default(cuid())
+  slotId    String
+  userId    String
+  status    String   @default("WAITING")
+  createdAt DateTime @default(now())
+
+  slot Slot @relation(fields: [slotId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([slotId, userId])
+  @@map("slot_requests")
 }
 
 model RefreshToken {
