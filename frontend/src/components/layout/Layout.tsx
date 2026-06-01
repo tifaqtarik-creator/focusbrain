@@ -14,7 +14,7 @@ export default function Layout() {
 
   const navItems = [
     { to: '/dashboard', icon: '🏠', label: t.nav.dashboard },
-    { to: '/profile/me', icon: '🧠', label: t.nav.profile },
+    { to: '/map', icon: '🗺️', label: 'Carte' },
     { to: '/circle', icon: '💜', label: t.nav.circle },
     { to: '/community', icon: '🌐', label: t.nav.community },
     { to: '/settings', icon: '⚙️', label: t.nav.settings },

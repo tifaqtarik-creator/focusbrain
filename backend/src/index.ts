@@ -12,6 +12,7 @@ import matchingRoutes from './routes/matching';
 import forumRoutes from './routes/forum';
 import subscriptionRoutes from './routes/subscriptions';
 import slotRoutes from './routes/slots';
+import mapRoutes from './routes/map';
 import { registerSocketHandlers } from './socket/handlers';
 import { authMiddleware } from './middleware/auth';
 import { rateLimiter } from './middleware/rateLimit';
@@ -44,6 +45,7 @@ app.use('/api/matching', authMiddleware, matchingRoutes);
 app.use('/api/forum', authMiddleware, forumRoutes);
 app.use('/api/subscriptions', authMiddleware, subscriptionRoutes);
 app.use('/api/slots', authMiddleware, slotRoutes);
+app.use('/api/map', authMiddleware, mapRoutes);
 
 app.get('/health', (_req, res) => res.json({ status: 'ok', service: 'focusbrain-api' }));
 
