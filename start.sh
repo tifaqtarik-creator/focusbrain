@@ -20,7 +20,7 @@ echo "✅ Node $(node --version) détecté"
 [ -f backend/.env ]  || { cp backend/.env.example backend/.env;   echo "✅ backend/.env créé"; }
 [ -f frontend/.env ] || { cp frontend/.env.example frontend/.env; echo "✅ frontend/.env créé"; }
 
-# 3. Base de données (Docker si dispo) + migrations
+# 3. Base de données : Docker en bonus si dispo (sinon PostgreSQL natif / cloud via backend/.env)
 if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
   echo "🐘 Démarrage de PostgreSQL via Docker..."
   docker compose up -d db
@@ -29,23 +29,19 @@ if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
     docker compose exec -T db pg_isready -U user -d focusbrain >/dev/null 2>&1 && break
     sleep 1
   done
-  DB_READY=1
-else
-  echo "⚠️  Docker introuvable : la base de données ne sera pas démarrée."
-  echo "    L'application s'ouvrira, mais l'inscription/connexion afficheront 'Erreur serveur'."
-  echo "    Installe Docker Desktop (https://docker.com) puis relance, ou fournis ta propre"
-  echo "    DATABASE_URL dans backend/.env."
-  DB_READY=0
 fi
 
-# 4. Dépendances backend + client Prisma
+# 4. Dépendances backend + client Prisma + migrations
 echo "📦 Installation backend..."
 ( cd backend && npm install && npx prisma generate )
 
-# Applique le schéma à la base si elle est prête
-if [ "$DB_READY" = "1" ]; then
-  echo "🗄️  Application des migrations Prisma..."
-  ( cd backend && npx prisma migrate deploy )
+echo "🗄️  Application des migrations Prisma..."
+if ! ( cd backend && npx prisma migrate deploy ); then
+  echo
+  echo "⚠️  Base de données injoignable sur localhost:5432."
+  echo "    L'inscription/connexion afficheront 'Erreur serveur'."
+  echo "    Installe PostgreSQL (voir LOCAL_SETUP.md) ou mets ta DATABASE_URL dans backend/.env, puis relance."
+  echo
 fi
 
 # 5. Dépendances frontend
