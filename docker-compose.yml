@@ -1,0 +1,25 @@
+# Base de données PostgreSQL pour FocusBrain (développement local)
+# Démarre avec :  docker compose up -d
+# Les identifiants correspondent à DATABASE_URL dans backend/.env.example :
+#   postgresql://user:password@localhost:5432/focusbrain
+services:
+  db:
+    image: postgres:16
+    container_name: focusbrain-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: focusbrain
+    ports:
+      - "5432:5432"
+    volumes:
+      - focusbrain_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d focusbrain"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  focusbrain_pgdata:
