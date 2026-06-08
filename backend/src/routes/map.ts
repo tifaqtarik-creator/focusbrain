@@ -20,7 +20,7 @@ router.get('/members', async (req: any, res) => {
       user: {
         select: {
           id: true, name: true, avatar: true,
-          tdahType: true, workStyle: true,
+          tdahType: true, workStyle: true, bio: true,
         },
       },
     },
@@ -39,10 +39,12 @@ router.get('/members', async (req: any, res) => {
     avatar: l.user.avatar,
     tdahType: l.user.tdahType,
     workStyle: l.user.workStyle,
+    bio: l.user.bio,
     city: l.city,
-    lat: fuzzCoord(l.lat),   // position floutée
+    lat: fuzzCoord(l.lat),
     lng: fuzzCoord(l.lng),
-    isAvailable: true,        // TODO: lier au statut socket
+    status: l.statusExpiry && l.statusExpiry < new Date() ? 'DISPONIBLE' : (l.status || 'DISPONIBLE'),
+    isAvailable: l.status !== 'ABSENT',
     updatedAt: l.updatedAt,
   }));
 
@@ -90,6 +92,158 @@ router.patch('/visibility', async (req: any, res) => {
   }
 
   res.json({ isVisible });
+});
+
+// ── PATCH /api/map/status — Changer son statut personnalisé ──────────────────
+router.patch('/status', async (req: any, res) => {
+  const { status } = req.body;
+  const VALID = ['DISPONIBLE','FOCUS','CAFE','BODY_DOUBLING','SILENCIEUX','HYPERFOCUS','ABSENT'];
+  if (!VALID.includes(status)) return res.status(400).json({ error: 'Statut invalide' });
+
+  // Expiration dans 4h pour éviter les statuts oubliés
+  const statusExpiry = new Date(Date.now() + 4 * 3600 * 1000);
+
+  await prisma.userLocation.upsert({
+    where: { userId: req.userId },
+    update: { status, statusExpiry },
+    create: { userId: req.userId, lat: 0, lng: 0, status, statusExpiry },
+  });
+
+  // Diffuser en temps réel à tous les membres de la carte
+  const io = req.app.get('io');
+  if (io) {
+    io.emit('map:status_changed', { userId: req.userId, status });
+  }
+
+  res.json({ status, statusExpiry });
+});
+
+// ── GET /api/map/places — Lieux TDAH-friendly ─────────────────────────────────
+router.get('/places', async (req: any, res) => {
+  const { lat, lng, type, radius = 10 } = req.query;
+
+  // Chercher en DB d'abord (lieux validés par la communauté)
+  const communityPlaces = await prisma.tdahPlace.findMany({
+    where: type ? { type: type as string } : {},
+    orderBy: [{ tdahScore: 'desc' }, { validations: 'desc' }],
+    take: 20,
+    select: {
+      id: true, name: true, type: true, lat: true, lng: true,
+      address: true, city: true, isQuiet: true, hasWifi: true,
+      tdahScore: true, validations: true,
+    },
+  });
+
+  // Compléter avec Maptiler POI si lat/lng fournis
+  let maptilerPlaces: any[] = [];
+  if (lat && lng) {
+    const MAPTILER_KEY = 'oer00nopMf2v9886mVRZ';
+    const queries = type
+      ? [{ q: type === 'CAFE' ? 'café' : type === 'LIBRARY' ? 'bibliothèque' : type === 'COWORKING' ? 'coworking' : 'park', t: type }]
+      : [
+          { q: 'café', t: 'CAFE' },
+          { q: 'bibliothèque', t: 'LIBRARY' },
+          { q: 'coworking', t: 'COWORKING' },
+          { q: 'park', t: 'PARK' },
+        ];
+
+    for (const { q, t } of queries.slice(0, type ? 1 : 4)) {
+      try {
+        const url = `https://api.maptiler.com/geocoding/${encodeURIComponent(q)}.json?proximity=${lng},${lat}&limit=4&key=${MAPTILER_KEY}`;
+        const resp = await fetch(url);
+        if (resp.ok) {
+          const data = await resp.json() as any;
+          const features = (data.features || []).map((f: any) => ({
+            id: `maptiler-${f.id}`,
+            name: f.text || f.place_name?.split(',')[0],
+            type: t,
+            lat: f.center[1],
+            lng: f.center[0],
+            address: f.place_name,
+            city: f.context?.find((c: any) => c.id?.startsWith('place'))?.text,
+            isQuiet: false, hasWifi: false, tdahScore: 3.0, validations: 0,
+            source: 'maptiler',
+          }));
+          maptilerPlaces.push(...features);
+        }
+      } catch { /* ignore */ }
+    }
+  }
+
+  res.json({ community: communityPlaces, suggestions: maptilerPlaces });
+});
+
+// ── POST /api/map/places — Ajouter un lieu TDAH-friendly ─────────────────────
+router.post('/places', async (req: any, res) => {
+  const { name, type, lat, lng, address, city, isQuiet, hasWifi } = req.body;
+  if (!name || !type || !lat || !lng) return res.status(400).json({ error: 'Données manquantes' });
+
+  const place = await prisma.tdahPlace.create({
+    data: { name, type, lat, lng, address, city, isQuiet: !!isQuiet, hasWifi: !!hasWifi, addedBy: req.userId, validations: 1, tdahScore: 4.0 },
+  });
+  res.status(201).json(place);
+});
+
+// ── POST /api/map/places/:id/validate — Valider un lieu ──────────────────────
+router.post('/places/:id/validate', async (req: any, res) => {
+  const { isQuiet, hasWifi, score } = req.body;
+  const place = await prisma.tdahPlace.findUnique({ where: { id: req.params.id } });
+  if (!place) return res.status(404).json({ error: 'Lieu introuvable' });
+
+  const newScore = (place.tdahScore * place.validations + (score || 4)) / (place.validations + 1);
+  const updated = await prisma.tdahPlace.update({
+    where: { id: req.params.id },
+    data: { validations: { increment: 1 }, tdahScore: newScore, isQuiet: isQuiet ?? place.isQuiet, hasWifi: hasWifi ?? place.hasWifi },
+  });
+  res.json(updated);
+});
+
+// ── GET /api/map/circle-ids — IDs des membres de mon cercle ──────────────────
+router.get('/circle-ids', async (req: any, res) => {
+  const circle = await prisma.circleMember.findMany({
+    where: { OR: [{ userId: req.userId }, { partnerId: req.userId }] },
+    select: { userId: true, partnerId: true },
+  });
+  const ids = new Set<string>();
+  circle.forEach(c => {
+    if (c.userId !== req.userId) ids.add(c.userId);
+    if (c.partnerId !== req.userId) ids.add(c.partnerId);
+  });
+  res.json({ ids: Array.from(ids) });
+});
+
+// ── GET /api/map/stats — Statistiques positives de ma carte ──────────────────
+router.get('/stats', async (req: any, res) => {
+  const [msgCount, meetCount, circleCount] = await Promise.all([
+    prisma.message.count({ where: { fromId: req.userId } }),
+    prisma.meetingProposal.count({ where: { OR: [{ fromId: req.userId }, { toId: req.userId }], status: 'ACCEPTED' } }),
+    prisma.circleMember.count({ where: { OR: [{ userId: req.userId }, { partnerId: req.userId }] } }),
+  ]);
+  res.json({ messagesSent: msgCount, meetingsConfirmed: meetCount, circleSize: circleCount });
+});
+
+// ── POST /api/map/meetings/:id/rate — Noter une rencontre ────────────────────
+router.post('/meetings/:id/rate', async (req: any, res) => {
+  const { rating, addToCircle } = req.body;
+  if (!rating || rating < 1 || rating > 5) return res.status(400).json({ error: 'Note invalide' });
+
+  const proposal = await prisma.meetingProposal.update({
+    where: { id: req.params.id },
+    data: { status: 'RATED' },
+    include: { from: true, to: true },
+  });
+
+  // Ajouter au cercle si demandé
+  if (addToCircle) {
+    const partnerId = proposal.fromId === req.userId ? proposal.toId : proposal.fromId;
+    await prisma.circleMember.upsert({
+      where: { userId_partnerId: { userId: req.userId, partnerId } },
+      update: { sessionCount: { increment: 1 } },
+      create: { userId: req.userId, partnerId },
+    });
+  }
+
+  res.json({ ok: true });
 });
 
 // ── GET /api/messages — Mes conversations ────────────────────────────────────

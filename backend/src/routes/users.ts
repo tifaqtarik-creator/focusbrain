@@ -6,13 +6,26 @@ import { AuthRequest } from '../middleware/auth';
 const router = Router();
 
 const updateProfileSchema = z.object({
-  name: z.string().min(1).max(50).optional(),
-  timezone: z.string().optional(),
-  tdahType: z.enum(['INATTENTIF', 'HYPERACTIF', 'COMBINE', 'NON_SPECIFIE', 'PREFERE_NE_PAS_DIRE']).optional(),
-  workStyle: z.enum(['SILENCIEUX', 'SOCIAL', 'FLEXIBLE']).optional(),
-  lowStimMode: z.boolean().optional(),
-  sensitivities: z.array(z.string()).optional(),
-  goals: z.array(z.string()).optional(),
+  name:            z.string().min(1).max(50).optional(),
+  bio:             z.string().max(200).optional(),
+  timezone:        z.string().optional(),
+  gender:          z.enum(['HOMME','FEMME','NON_BINAIRE','PREFERE_NE_PAS_DIRE']).optional(),
+  birthDate:       z.string().optional(),
+  phone:           z.string().optional(),
+  tdahType:        z.enum(['INATTENTIF','HYPERACTIF','COMBINE','NON_SPECIFIE','PREFERE_NE_PAS_DIRE']).optional(),
+  diagnosisStatus: z.enum(['DIAGNOSTIQUE','EN_COURS','AUTO_DIAGNOSTIQUE','NON_DIAGNOSTIQUE']).optional(),
+  workStyle:       z.enum(['SILENCIEUX','SOCIAL','FLEXIBLE']).optional(),
+  workObjectives:  z.array(z.string()).optional(),
+  availabilities:  z.array(z.string()).optional(),
+  lowStimMode:     z.boolean().optional(),
+  sensitivities:   z.array(z.string()).optional(),
+  goals:           z.array(z.string()).optional(),
+  onboardingDone:  z.boolean().optional(),
+  // Avatar ADAH AI
+  aiAvatarUrl:     z.string().optional(),
+  aiAvatarGender:  z.enum(['FEMME', 'HOMME']).optional(),
+  aiVoicePref:     z.enum(['douce', 'posee', 'dynamique']).optional(),
+  aiAvatarStyle:   z.enum(['chaleureux', 'direct']).optional(),
 });
 
 // GET /api/users/me
@@ -25,6 +38,7 @@ router.get('/me', async (req: AuthRequest, res) => {
         tdahType: true, workStyle: true, sensitivities: true, goals: true,
         role: true, isPremium: true, lowStimMode: true, createdAt: true,
         badges: true,
+        aiAvatarUrl: true, aiAvatarGender: true, aiVoicePref: true, aiAvatarStyle: true,
         circleAs: { include: { partner: { select: { id: true, name: true, avatar: true } } } },
       },
     });
@@ -51,18 +65,120 @@ router.get('/me', async (req: AuthRequest, res) => {
 // PATCH /api/users/me
 router.patch('/me', async (req: AuthRequest, res) => {
   try {
-    const data = updateProfileSchema.parse(req.body);
+    const parsed = updateProfileSchema.parse(req.body);
+
+    // Convertir birthDate string → DateTime
+    const updateData: any = { ...parsed };
+    if (parsed.birthDate) {
+      updateData.birthDate = new Date(parsed.birthDate);
+    }
+
     const user = await prisma.user.update({
       where: { id: req.userId! },
-      data,
+      data: updateData,
       select: {
         id: true, email: true, name: true, avatar: true, timezone: true,
-        tdahType: true, workStyle: true, lowStimMode: true, role: true, isPremium: true,
+        phone: true, gender: true, birthDate: true,
+        tdahType: true, diagnosisStatus: true,
+        workStyle: true, workObjectives: true, availabilities: true,
+        lowStimMode: true, role: true, isPremium: true,
+        onboardingDone: true, bio: true,
+        aiAvatarUrl: true, aiAvatarGender: true, aiVoicePref: true, aiAvatarStyle: true,
       },
     });
     res.json(user);
   } catch (err) {
     if (err instanceof z.ZodError) return res.status(400).json({ error: err.errors });
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// GET /api/users/me/stats — KPIs personnels TDAH
+router.get('/me/stats', async (req: AuthRequest, res) => {
+  try {
+    const uid = req.userId!;
+    const weekAgo  = new Date(Date.now() - 7  * 24 * 3600 * 1000);
+    const monthAgo = new Date(Date.now() - 30 * 24 * 3600 * 1000);
+
+    const [
+      totalPosts, postsThisWeek,
+      totalReplies, repliesThisWeek,
+      reactionsReceived,
+      bdSessions, bdSessionsWeek,
+      circleSize,
+      meetingsConfirmed,
+      myPosts,
+    ] = await Promise.all([
+      // Posts forum
+      prisma.forumPost.count({ where: { userId: uid, parentId: null } }),
+      prisma.forumPost.count({ where: { userId: uid, parentId: null, createdAt: { gte: weekAgo } } }),
+      // Réponses forum
+      prisma.forumPost.count({ where: { userId: uid, parentId: { not: null } } }),
+      prisma.forumPost.count({ where: { userId: uid, parentId: { not: null }, createdAt: { gte: weekAgo } } }),
+      // Réactions reçues sur mes posts (total)
+      prisma.forumPost.findMany({ where: { userId: uid }, select: { emojiReactions: true } }),
+      // Sessions body doubling
+      prisma.slot.count({ where: { OR: [{ creatorId: uid }, { partnerId: uid }], status: 'CONFIRMED' } }),
+      prisma.slot.count({ where: { OR: [{ creatorId: uid }, { partnerId: uid }], status: 'CONFIRMED', createdAt: { gte: weekAgo } } }),
+      // Cercle
+      prisma.circleMember.count({ where: { OR: [{ userId: uid }, { partnerId: uid }] } }),
+      // Rencontres physiques confirmées
+      prisma.meetingProposal.count({ where: { OR: [{ fromId: uid }, { toId: uid }], status: 'ACCEPTED' } }),
+      // Mes posts récents avec leurs réponses
+      prisma.forumPost.findMany({
+        where: { userId: uid, parentId: null },
+        select: {
+          id: true, title: true, content: true, spaceId: true,
+          emojiReactions: true, createdAt: true,
+          _count: { select: { replies: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+      }),
+    ]);
+
+    // Calcul total réactions reçues
+    const totalReactionsReceived = reactionsReceived.reduce((acc, post) => {
+      const r = (post.emojiReactions as Record<string, number>) || {};
+      return acc + Object.values(r).reduce((a, b) => a + b, 0);
+    }, 0);
+
+    // Réponses reçues sur mes posts
+    const repliesOnMyPosts = await prisma.forumPost.count({
+      where: {
+        parentId: { in: myPosts.map(p => p.id) },
+        userId: { not: uid },
+      },
+    });
+    const repliesThisWeekOnMyPosts = await prisma.forumPost.count({
+      where: {
+        parentId: { in: myPosts.map(p => p.id) },
+        userId: { not: uid },
+        createdAt: { gte: weekAgo },
+      },
+    });
+
+    // Messages envoyés
+    const messagesSent = await prisma.message.count({ where: { fromId: uid } });
+    const messagesThisWeek = await prisma.message.count({ where: { fromId: uid, createdAt: { gte: weekAgo } } });
+
+    res.json({
+      // Posts & contributions
+      totalPosts, postsThisWeek,
+      totalReplies, repliesThisWeek,
+      totalReactionsReceived,
+      repliesOnMyPosts, repliesThisWeekOnMyPosts,
+      // Connexions
+      circleSize,
+      messagesSent, messagesThisWeek,
+      // Sessions & rencontres
+      bdSessions, bdSessionsWeek,
+      meetingsConfirmed,
+      // Posts récents
+      recentPosts: myPosts,
+    });
+  } catch (err: any) {
+    console.error('stats error:', err);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });

@@ -68,6 +68,19 @@
     min-height: 100vh;
   }
 
+  /* ADAH AI — Focus Mode : masque les distractions périphériques */
+  body.adah-focus-mode header nav,
+  body.adah-focus-mode header .notification-bell,
+  body.adah-focus-mode header .lang-selector {
+    opacity: 0.3;
+    pointer-events: none;
+    transition: opacity 0.3s;
+  }
+  body.adah-focus-mode header {
+    background: rgba(255,255,255,0.98);
+    backdrop-filter: blur(8px);
+  }
+
   /* Mode Low Stim — aucune animation, couleurs réduites */
   .low-stim * {
     animation: none !important;

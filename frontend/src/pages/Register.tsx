@@ -42,7 +42,7 @@ export default function Register() {
       const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
       const res = await api.post('/auth/register', { ...step1Data, ...data, timezone });
       setAuth(res.data.user, res.data.accessToken, res.data.refreshToken);
-      navigate('/dashboard');
+      navigate('/onboarding');
     } catch (e: any) {
       setError(e.response?.data?.error || a.errorGeneric);
     } finally {

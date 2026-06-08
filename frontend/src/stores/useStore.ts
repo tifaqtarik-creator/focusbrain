@@ -12,6 +12,11 @@ interface User {
   role: string;
   isPremium: boolean;
   lowStimMode: boolean;
+  // ADAH AI — avatar thérapeute
+  aiAvatarUrl?: string;
+  aiAvatarGender?: string;
+  aiVoicePref?: string;
+  aiAvatarStyle?: string;
 }
 
 interface AppStore {

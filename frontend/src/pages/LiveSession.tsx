@@ -32,6 +32,15 @@ export default function LiveSession() {
   const [partnerTask, setPartnerTask] = useState('');
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Satisfaction post-session
+  const [showFeedback, setShowFeedback]   = useState(false);
+  const [feedbackRating,  setFeedbackRating]  = useState(0);
+  const [feedbackHover,   setFeedbackHover]   = useState(0);
+  const [feedbackComment, setFeedbackComment] = useState('');
+  const [feedbackMood,    setFeedbackMood]    = useState('');
+  const [feedbackSent,    setFeedbackSent]    = useState(false);
+  const [feedbackLoading, setFeedbackLoading] = useState(false);
+
   // ── Chargement token LiveKit ──────────────────────────────────────────────
   useEffect(() => {
     if (!slotId) return;
@@ -68,7 +77,13 @@ export default function LiveSession() {
     setTimeLeft(durationMin * 60);
     timerRef.current = setInterval(() => {
       setTimeLeft(prev => {
-        if (prev <= 1) { clearInterval(timerRef.current!); setPhase('done'); return 0; }
+        if (prev <= 1) {
+          clearInterval(timerRef.current!);
+          setPhase('done');
+          // Afficher le modal de satisfaction après 1 seconde
+          setTimeout(() => setShowFeedback(true), 1000);
+          return 0;
+        }
         return prev - 1;
       });
     }, 1000);
@@ -85,6 +100,31 @@ export default function LiveSession() {
 
   const leave = () => {
     clearInterval(timerRef.current!);
+    setPhase('done');
+    setShowFeedback(true);
+  };
+
+  const submitFeedback = async () => {
+    if (!slotId || feedbackLoading) return;
+    setFeedbackLoading(true);
+    try {
+      await api.post(`/slots/${slotId}/feedback`, {
+        rating:  feedbackRating || 5,
+        comment: feedbackComment.trim() || undefined,
+        mood:    feedbackMood || undefined,
+      });
+      setFeedbackSent(true);
+    } catch { /* ignore */ }
+    setFeedbackLoading(false);
+  };
+
+  const skipFeedback = () => {
+    setShowFeedback(false);
+    navigate('/dashboard');
+  };
+
+  const closeFeedback = () => {
+    setShowFeedback(false);
     navigate('/dashboard');
   };
 
@@ -138,9 +178,27 @@ export default function LiveSession() {
           <strong>{slot?.partner?.name || 'ton partenaire'}</strong>
         </p>
 
+        {/* Tâche du partenaire (depuis le slot) */}
+        {(slot?.creatorTask || slot?.partnerTask) && (
+          <div className="bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 mb-5">
+            <p className="text-xs font-bold text-slate-500 uppercase mb-2">🎯 Objectifs de la session</p>
+            {slot?.creatorTask && (
+              <p className="text-sm text-slate-700 mb-1">
+                <strong>{slot?.creator?.name} :</strong> "{slot.creatorTask}"
+              </p>
+            )}
+            {slot?.partnerTask && (
+              <p className="text-sm text-slate-700">
+                <strong>{slot?.partner?.name} :</strong> "{slot.partnerTask}"
+              </p>
+            )}
+          </div>
+        )}
+
         <div className="mb-6">
           <label className="block text-sm font-bold text-gray-700 mb-2">
-            Sur quoi tu te concentres ? <span className="text-gray-400 font-normal">(optionnel)</span>
+            🎯 Sur quoi tu te concentres ?
+            <span className="text-gray-400 font-normal ml-1">(optionnel)</span>
           </label>
           <input
             value={task}
@@ -253,9 +311,9 @@ export default function LiveSession() {
 
   // ── Fin de session ────────────────────────────────────────────────────────
   if (phase === 'done') return (
-    <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
-      className="min-h-screen bg-teal-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl p-10 max-w-md w-full text-center shadow-sm">
+    <div className="min-h-screen bg-teal-50 flex items-center justify-center p-4">
+      <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
+        className="bg-white rounded-2xl p-10 max-w-md w-full text-center shadow-sm">
         <div className="text-7xl mb-5">🎉</div>
         <h1 className="text-3xl font-black text-gray-900 mb-2">Session terminée !</h1>
         <p className="text-xl text-teal-600 font-bold mb-1">Ton cerveau TDAH vient de faire quelque chose de difficile.</p>
@@ -277,12 +335,153 @@ export default function LiveSession() {
           </button>
         </div>
 
-        <button onClick={() => navigate('/dashboard')}
+        <button onClick={closeFeedback}
           className="text-gray-400 hover:text-gray-600 text-sm transition-colors">
           Retour au dashboard →
         </button>
-      </div>
-    </motion.div>
+      </motion.div>
+
+      {/* ── MODAL SATISFACTION POST-SESSION ── */}
+      <AnimatePresence>
+        {showFeedback && (
+          <motion.div
+            className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div
+              className="bg-white rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden"
+              initial={{ y: 60, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 60, opacity: 0 }}
+              transition={{ type: 'spring', damping: 20 }}
+            >
+              {!feedbackSent ? (
+                <div className="p-6">
+                  {/* Header */}
+                  <div className="text-center mb-5">
+                    <p className="text-3xl mb-2">✨</p>
+                    <h3 className="font-black text-gray-900 text-xl">Comment s'est passée la session ?</h3>
+                    <p className="text-gray-400 text-sm mt-1">Avec {slot?.partner?.name || 'ton partenaire'}</p>
+                  </div>
+
+                  {/* Étoiles */}
+                  <div className="flex justify-center gap-3 mb-5">
+                    {[1, 2, 3, 4, 5].map(star => (
+                      <button
+                        key={star}
+                        onMouseEnter={() => setFeedbackHover(star)}
+                        onMouseLeave={() => setFeedbackHover(0)}
+                        onClick={() => setFeedbackRating(star)}
+                        className="transition-transform hover:scale-125 active:scale-90"
+                      >
+                        <span className={`text-4xl transition-all ${
+                          star <= (feedbackHover || feedbackRating)
+                            ? 'opacity-100'
+                            : 'opacity-25 grayscale'
+                        }`}>⭐</span>
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Label du rating */}
+                  {feedbackRating > 0 && (
+                    <motion.p
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="text-center text-sm font-bold text-teal-600 mb-4"
+                    >
+                      {feedbackRating === 5 ? '🔥 Excellente session !'
+                        : feedbackRating === 4 ? '😊 Très bonne session'
+                        : feedbackRating === 3 ? '👍 Session correcte'
+                        : feedbackRating === 2 ? '😕 Session difficile'
+                        : '😔 Session compliquée'}
+                    </motion.p>
+                  )}
+
+                  {/* Humeur post-session */}
+                  <div className="mb-4">
+                    <p className="text-xs text-gray-400 font-bold uppercase mb-2">Comment tu te sens maintenant ?</p>
+                    <div className="flex justify-center gap-3">
+                      {['😊', '😌', '💪', '😐', '😴'].map(emoji => (
+                        <button
+                          key={emoji}
+                          onClick={() => setFeedbackMood(feedbackMood === emoji ? '' : emoji)}
+                          className={`text-2xl p-2 rounded-xl transition-all ${
+                            feedbackMood === emoji
+                              ? 'bg-teal-100 scale-110 ring-2 ring-teal-400'
+                              : 'hover:bg-gray-100 hover:scale-110'
+                          }`}
+                        >
+                          {emoji}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Commentaire optionnel */}
+                  <div className="mb-5">
+                    <p className="text-xs text-gray-400 font-bold uppercase mb-2">
+                      Un commentaire ? <span className="font-normal text-gray-300">(optionnel)</span>
+                    </p>
+                    <textarea
+                      value={feedbackComment}
+                      onChange={e => setFeedbackComment(e.target.value)}
+                      placeholder="Ce qui a bien marché, ce qui était difficile..."
+                      rows={2}
+                      maxLength={500}
+                      className="w-full border-2 border-gray-200 focus:border-teal-400 rounded-xl px-3 py-2.5 text-sm outline-none resize-none"
+                    />
+                    <p className="text-xs text-gray-300 text-right mt-0.5">{feedbackComment.length}/500</p>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex gap-3">
+                    <button
+                      onClick={skipFeedback}
+                      className="flex-1 border-2 border-gray-200 text-gray-500 font-bold py-3 rounded-2xl hover:bg-gray-50 text-sm transition-colors"
+                    >
+                      Passer
+                    </button>
+                    <button
+                      onClick={submitFeedback}
+                      disabled={feedbackRating === 0 || feedbackLoading}
+                      className="flex-1 bg-teal-500 hover:bg-teal-600 disabled:opacity-40 text-white font-black py-3 rounded-2xl text-sm transition-colors"
+                    >
+                      {feedbackLoading ? '⏳...' : '✓ Envoyer'}
+                    </button>
+                  </div>
+
+                  <p className="text-center text-xs text-gray-300 mt-3">
+                    Ton avis aide à améliorer FocusBrain 💜
+                  </p>
+                </div>
+              ) : (
+                /* Confirmation envoi */
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="p-8 text-center"
+                >
+                  <p className="text-5xl mb-3">💜</p>
+                  <h3 className="font-black text-gray-900 text-xl mb-2">Merci !</h3>
+                  <p className="text-gray-500 text-sm mb-6">
+                    Ton avis aide toute la communauté TDAH à mieux se retrouver.
+                  </p>
+                  <button
+                    onClick={closeFeedback}
+                    className="w-full bg-teal-500 text-white font-black py-3 rounded-2xl hover:bg-teal-600 transition-colors"
+                  >
+                    Retour au dashboard →
+                  </button>
+                </motion.div>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 
   return null;

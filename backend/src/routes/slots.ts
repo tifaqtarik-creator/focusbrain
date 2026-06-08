@@ -107,14 +107,15 @@ router.get('/pending', async (req: any, res) => {
 // ── POST /api/slots — Créer un créneau ───────────────────────────────────────
 router.post('/', async (req: any, res) => {
   const schema = z.object({
-    startTime: z.string().datetime(),
-    duration: z.number().refine(d => [15, 25, 50, 75].includes(d)),
+    startTime:   z.string().datetime(),
+    duration:    z.number().refine(d => [15, 25, 50, 75].includes(d)),
+    creatorTask: z.string().max(200).optional(), // tâche du créateur
   });
 
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Données invalides' });
 
-  const { startTime, duration } = parsed.data;
+  const { startTime, duration, creatorTask } = parsed.data;
 
   // Vérifier chevauchement
   const existing = await prisma.slot.findFirst({
@@ -136,6 +137,7 @@ router.post('/', async (req: any, res) => {
       startTime: new Date(startTime),
       duration,
       status: 'OPEN',
+      creatorTask: creatorTask?.trim() || null,
     },
     include: {
       creator: { select: { id: true, name: true, tdahType: true, avatar: true } },
@@ -147,6 +149,66 @@ router.post('/', async (req: any, res) => {
   if (io) io.emit('slot:created', slot);
 
   res.status(201).json(slot);
+});
+
+// ── POST /api/slots/:id/request — Demander à rejoindre ───────────────────────
+// ── PATCH /api/slots/:id — Modifier un créneau ───────────────────────────────
+router.patch('/:id', async (req: any, res) => {
+  const slot = await prisma.slot.findUnique({ where: { id: req.params.id } });
+  if (!slot)                        return res.status(404).json({ error: 'Créneau introuvable' });
+  if (slot.creatorId !== req.userId) return res.status(403).json({ error: 'Non autorisé' });
+  if (slot.status === 'CONFIRMED')   return res.status(400).json({ error: 'Impossible de modifier un créneau confirmé' });
+
+  const schema = z.object({
+    startTime:   z.string().datetime().optional(),
+    duration:    z.number().refine(d => [15, 25, 50, 75].includes(d)).optional(),
+    creatorTask: z.string().max(200).nullable().optional(),
+  });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Données invalides' });
+
+  const updated = await prisma.slot.update({
+    where: { id: req.params.id },
+    data: {
+      ...(parsed.data.startTime   && { startTime: new Date(parsed.data.startTime) }),
+      ...(parsed.data.duration    && { duration: parsed.data.duration }),
+      ...(parsed.data.creatorTask !== undefined && { creatorTask: parsed.data.creatorTask }),
+    },
+    include: { creator: { select: { id: true, name: true, avatar: true } } },
+  });
+
+  // Notifier les candidats de la modification
+  const io = req.app.get('io');
+  if (io) io.emit('slot:updated', updated);
+
+  res.json(updated);
+});
+
+// ── DELETE /api/slots/:id — Supprimer un créneau ─────────────────────────────
+router.delete('/:id', async (req: any, res) => {
+  const slot = await prisma.slot.findUnique({
+    where: { id: req.params.id },
+    include: { requests: { select: { userId: true } } },
+  });
+  if (!slot)                        return res.status(404).json({ error: 'Créneau introuvable' });
+  if (slot.creatorId !== req.userId) return res.status(403).json({ error: 'Non autorisé' });
+
+  // Notifier les candidats que le créneau est annulé
+  const io = req.app.get('io');
+  if (io) {
+    slot.requests.forEach(r => {
+      io.to(`user:${r.userId}`).emit('slot:cancelled', {
+        slotId: slot.id,
+        message: 'Le créneau a été annulé par le créateur.',
+      });
+    });
+  }
+
+  // Supprimer requests puis le slot
+  await prisma.slotRequest.deleteMany({ where: { slotId: req.params.id } });
+  await prisma.slot.delete({ where: { id: req.params.id } });
+
+  res.json({ success: true });
 });
 
 // ── POST /api/slots/:id/request — Demander à rejoindre ───────────────────────
@@ -171,9 +233,17 @@ router.post('/:id/request', async (req: any, res) => {
     select: { id: true, name: true, tdahType: true, avatar: true },
   });
 
-  // Créer la demande
+  // Récupérer la tâche du candidat si fournie
+  const { candidateTask } = req.body;
+
+  // Créer la demande avec la tâche
   const request = await prisma.slotRequest.create({
-    data: { slotId: slot.id, userId: req.userId, status: 'WAITING' },
+    data: {
+      slotId: slot.id,
+      userId: req.userId,
+      status: 'WAITING',
+      candidateTask: candidateTask?.trim() || null,
+    },
     include: { user: { select: { id: true, name: true, tdahType: true, avatar: true } } },
   });
 
@@ -187,10 +257,12 @@ router.post('/:id/request', async (req: any, res) => {
   const io = req.app.get('io');
   if (io) {
     io.to(`user:${slot.creatorId}`).emit('slot:request_received', {
-      slotId: slot.id,
-      startTime: slot.startTime,
-      duration: slot.duration,
-      candidate: request.user,
+      slotId:         slot.id,
+      startTime:      slot.startTime,
+      duration:       slot.duration,
+      creatorTask:    slot.creatorTask,
+      candidate:      request.user,
+      candidateTask:  request.candidateTask,
       totalCandidates: await prisma.slotRequest.count({ where: { slotId: slot.id } }),
     });
   }
@@ -232,10 +304,15 @@ router.post('/:id/confirm', async (req: any, res) => {
       where: { slotId: slot.id, userId: { not: candidateId }, status: 'WAITING' },
       data: { status: 'REJECTED' },
     }),
-    // Mettre à jour le slot
+    // Mettre à jour le slot avec la tâche du partenaire
     prisma.slot.update({
       where: { id: slot.id },
-      data: { status: 'CONFIRMED', partnerId: candidateId, liveRoomName: roomName },
+      data: {
+        status: 'CONFIRMED',
+        partnerId: candidateId,
+        liveRoomName: roomName,
+        partnerTask: request.candidateTask || null,
+      },
     }),
   ]);
 
@@ -249,10 +326,12 @@ router.post('/:id/confirm', async (req: any, res) => {
   if (io) {
     // Notifier le partenaire confirmé
     io.to(`user:${candidateId}`).emit('slot:confirmed', {
-      slotId: slot.id,
-      startTime: slot.startTime,
-      duration: slot.duration,
-      creator: slot.creator,
+      slotId:      slot.id,
+      startTime:   slot.startTime,
+      duration:    slot.duration,
+      creator:     slot.creator,
+      creatorTask: slot.creatorTask,
+      partnerTask: request.candidateTask,
     });
 
     // Notifier les candidats refusés
@@ -330,6 +409,60 @@ router.get('/:id/token', async (req: any, res) => {
     roomName,
     partner: isCreator ? slot.partner : slot.creator,
   });
+});
+
+// ── POST /api/slots/:id/feedback — Satisfaction post-session ─────────────────
+router.post('/:id/feedback', async (req: any, res) => {
+  const schema = z.object({
+    rating:  z.number().int().min(1).max(5),
+    comment: z.string().max(500).optional(),
+    mood:    z.string().max(10).optional(),
+  });
+
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Données invalides' });
+
+  const slot = await prisma.slot.findUnique({ where: { id: req.params.id } });
+  if (!slot) return res.status(404).json({ error: 'Session introuvable' });
+
+  // Vérifier que l'utilisateur a participé à cette session
+  const isParticipant = slot.creatorId === req.userId || slot.partnerId === req.userId;
+  if (!isParticipant) return res.status(403).json({ error: 'Non autorisé' });
+
+  // Créer ou mettre à jour le feedback (1 seul par personne)
+  const feedback = await prisma.slotFeedback.upsert({
+    where: { slotId_userId: { slotId: req.params.id, userId: req.userId } },
+    update: parsed.data,
+    create: { slotId: req.params.id, userId: req.userId, ...parsed.data },
+  });
+
+  res.status(201).json(feedback);
+});
+
+// ── GET /api/slots/:id/feedbacks — Avis sur une session ──────────────────────
+router.get('/:id/feedbacks', async (req: any, res) => {
+  const feedbacks = await prisma.slotFeedback.findMany({
+    where: { slotId: req.params.id },
+    include: { user: { select: { id: true, name: true, avatar: true } } },
+  });
+  const avg = feedbacks.length
+    ? feedbacks.reduce((a, f) => a + f.rating, 0) / feedbacks.length
+    : null;
+  res.json({ feedbacks, average: avg, count: feedbacks.length });
+});
+
+// ── GET /api/slots/my-feedbacks — Mes stats de satisfaction ──────────────────
+router.get('/my-feedbacks', async (req: any, res) => {
+  const feedbacks = await prisma.slotFeedback.findMany({
+    where: { userId: req.userId },
+    include: { slot: { select: { startTime: true, duration: true } } },
+    orderBy: { createdAt: 'desc' },
+    take: 20,
+  });
+  const avg = feedbacks.length
+    ? feedbacks.reduce((a, f) => a + f.rating, 0) / feedbacks.length
+    : null;
+  res.json({ feedbacks, average: avg });
 });
 
 export default router;

@@ -48,6 +48,9 @@ export default function Landing() {
               </motion.div>
             )}
           </div>
+          <Link to="/donate" className="text-purple-600 font-bold text-sm px-4 py-2 rounded-xl hover:bg-purple-50 transition-colors flex items-center gap-1">
+            💜 Soutenir
+          </Link>
           <Link to="/login" className="text-gray-600 font-semibold text-sm px-4 py-2 rounded-xl hover:bg-gray-50 transition-colors">
             {t.auth.connect}
           </Link>
@@ -177,6 +180,45 @@ export default function Landing() {
             </motion.div>
           ))}
         </div>
+      </section>
+
+      {/* ── Section Donation ────────────────────────────────────────────── */}
+      <section className="max-w-3xl mx-auto px-6 py-20">
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="bg-gradient-to-br from-purple-50 to-teal-50 rounded-3xl p-10 text-center border border-purple-100 shadow-sm"
+        >
+          <span className="text-4xl block mb-4">💜</span>
+          <h2 className="text-3xl font-black text-gray-900 mb-3" style={{ fontFamily: 'DM Sans' }}>
+            Tu crois en ce projet ?
+          </h2>
+          <p className="text-gray-500 text-lg mb-2 max-w-xl mx-auto leading-relaxed">
+            FocusBrain est construit par un adulte TDAH, seul, pour notre communauté.
+            Un petit don peut changer beaucoup.
+          </p>
+          <p className="text-gray-400 text-sm mb-8">
+            Paiement sécurisé via PayPal · À partir de 5€ · Aucun compte requis
+          </p>
+          <div className="flex flex-wrap justify-center gap-3 mb-6">
+            {[5, 10, 20].map(amount => (
+              <Link
+                key={amount}
+                to={`/donate`}
+                className="bg-white border-2 border-purple-200 hover:border-purple-400 text-gray-900 font-black px-6 py-3 rounded-2xl transition-all hover:shadow-md hover:-translate-y-0.5"
+              >
+                {amount}€
+              </Link>
+            ))}
+          </div>
+          <Link
+            to="/donate"
+            className="inline-block bg-gradient-to-r from-purple-500 to-teal-500 text-white font-black text-lg px-10 py-4 rounded-2xl hover:shadow-xl transition-all hover:-translate-y-0.5"
+          >
+            💜 Soutenir FocusBrain
+          </Link>
+        </motion.div>
       </section>
 
       {/* CTA final — 1 message, 1 bouton */}

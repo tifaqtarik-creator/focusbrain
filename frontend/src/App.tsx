@@ -11,6 +11,15 @@ import Circle from './pages/Circle';
 import Community from './pages/Community';
 import Settings from './pages/Settings';
 import Pricing from './pages/Pricing';
+import Donate from './pages/Donate';
+import Onboarding from './pages/Onboarding';
+import MonEspace from './pages/MonEspace';
+import AdahAI from './modules/AdahAI';
+import MusicPage from './pages/MusicPage';
+import DayPlannerPage from './pages/DayPlannerPage';
+import { PlannerProvider } from './context/PlannerContext';
+import PaymentSuccess from './pages/PaymentSuccess';
+import PaymentCancel from './pages/PaymentCancel';
 import LiveSession from './pages/LiveSession';
 import MapMembers from './pages/MapMembers';
 import Layout from './components/layout/Layout';
@@ -25,12 +34,17 @@ export default function App() {
 
   return (
     <div className={lowStim ? 'low-stim' : ''}>
+      <PlannerProvider>
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Landing />} />
           <Route path="/register" element={<Register />} />
           <Route path="/login" element={<Login />} />
           <Route path="/pricing" element={<Pricing />} />
+          <Route path="/onboarding" element={<Onboarding />} />
+          <Route path="/donate" element={<Donate />} />
+          <Route path="/payment/success" element={<PaymentSuccess />} />
+          <Route path="/payment/cancel" element={<PaymentCancel />} />
 
           <Route element={<PrivateRoute><Layout /></PrivateRoute>}>
             <Route path="/dashboard" element={<Dashboard />} />
@@ -42,9 +56,14 @@ export default function App() {
             <Route path="/circle" element={<Circle />} />
             <Route path="/community" element={<Community />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/mon-espace" element={<MonEspace />} />
+            <Route path="/adah" element={<AdahAI />} />
+            <Route path="/music" element={<MusicPage />} />
+            <Route path="/planner" element={<DayPlannerPage />} />
           </Route>
         </Routes>
       </BrowserRouter>
+      </PlannerProvider>
     </div>
   );
 }

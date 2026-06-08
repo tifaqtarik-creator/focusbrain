@@ -17,6 +17,14 @@ interface MatchingUser {
 const waitingQueue: MatchingUser[] = [];
 const MATCH_TIMEOUT_MS = 90_000;
 
+// ── Salles de focus (présence temps réel — Body Doubling) ────────────────────
+interface FocusParticipant {
+  userId: string; name: string; avatar: string | null;
+  goal: string; status: 'focus' | 'paused' | 'done'; joinedAt: number; socketId: string;
+}
+// roomId → (socketId → participant)
+const focusRooms = new Map<string, Map<string, FocusParticipant>>();
+
 export function registerSocketHandlers(io: Server) {
   io.use((socket, next) => {
     const token = socket.handshake.auth.token;
@@ -113,9 +121,53 @@ export function registerSocketHandlers(io: Server) {
       io.to(data.sessionId).emit('session:extend_accepted');
     });
 
+    // ── Salles de focus (Body Doubling — présence temps réel) ──
+    socket.on('focus:join', async (data: { roomId: string; goal?: string; duration?: number }) => {
+      const u = await prisma.user.findUnique({ where: { id: userId }, select: { name: true, avatar: true } });
+      const roomId = data.roomId || 'now';
+      socket.join(`focus:${roomId}`);
+      let room = focusRooms.get(roomId);
+      if (!room) { room = new Map(); focusRooms.set(roomId, room); }
+      room.set(socket.id, {
+        userId, name: u?.name || 'Membre', avatar: u?.avatar || null,
+        goal: data.goal || '', status: 'focus', joinedAt: Date.now(), socketId: socket.id,
+      });
+      broadcastFocusPresence(io, roomId);
+      broadcastFocusCounts(io);
+    });
+
+    socket.on('focus:update', (data: { roomId: string; goal?: string; status?: 'focus' | 'paused' | 'done' }) => {
+      const p = focusRooms.get(data.roomId)?.get(socket.id);
+      if (p) {
+        if (data.goal !== undefined) p.goal = data.goal;
+        if (data.status) p.status = data.status;
+        broadcastFocusPresence(io, data.roomId);
+      }
+    });
+
+    socket.on('focus:done', (data: { roomId: string }) => {
+      const p = focusRooms.get(data.roomId)?.get(socket.id);
+      if (p) io.to(`focus:${data.roomId}`).emit('focus:celebrate', { name: p.name });
+      leaveFocusRoom(io, socket, data.roomId);
+    });
+
+    socket.on('focus:leave', (data: { roomId: string }) => {
+      leaveFocusRoom(io, socket, data.roomId);
+    });
+
+    socket.on('focus:counts:get', () => {
+      socket.emit('focus:counts', focusCountsObject());
+    });
+
     socket.on('disconnect', () => {
       const idx = waitingQueue.findIndex(u => u.userId === userId);
       if (idx !== -1) waitingQueue.splice(idx, 1);
+      // Nettoyer les salles de focus
+      let changed = false;
+      for (const [roomId, room] of focusRooms) {
+        if (room.delete(socket.id)) { broadcastFocusPresence(io, roomId); if (room.size === 0) focusRooms.delete(roomId); changed = true; }
+      }
+      if (changed) broadcastFocusCounts(io);
       console.log(`🔌 User disconnected: ${userId}`);
     });
   });
@@ -192,6 +244,32 @@ async function createMatchedSession(io: Server, user1: MatchingUser, user2: Matc
 
   io.sockets.sockets.get(user1.socketId)?.join(session.id);
   io.sockets.sockets.get(user2.socketId)?.join(session.id);
+}
+
+// ── Helpers salles de focus ──────────────────────────────────────────────────
+function broadcastFocusPresence(io: Server, roomId: string) {
+  const room = focusRooms.get(roomId);
+  const participants = room ? [...room.values()].map(p => ({
+    userId: p.userId, name: p.name, avatar: p.avatar, goal: p.goal, status: p.status,
+  })) : [];
+  io.to(`focus:${roomId}`).emit('focus:presence', { roomId, participants });
+}
+function focusCountsObject(): Record<string, number> {
+  const o: Record<string, number> = {};
+  for (const [roomId, room] of focusRooms) if (room.size > 0) o[roomId] = room.size;
+  return o;
+}
+function broadcastFocusCounts(io: Server) {
+  io.emit('focus:counts', focusCountsObject());
+}
+function leaveFocusRoom(io: Server, socket: Socket, roomId: string) {
+  const room = focusRooms.get(roomId);
+  if (room && room.delete(socket.id)) {
+    socket.leave(`focus:${roomId}`);
+    if (room.size === 0) focusRooms.delete(roomId);
+    broadcastFocusPresence(io, roomId);
+    broadcastFocusCounts(io);
+  }
 }
 
 async function notifyCircle(io: Server, userId: string, socketId: string) {

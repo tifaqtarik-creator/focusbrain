@@ -2,7 +2,9 @@ import axios from 'axios';
 import { useAppStore } from '../stores/useStore';
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3001/api',
+  // En dev : URL relative → proxy Vite (pas de CORS).
+  // En prod : VITE_API_URL pointe vers le backend déployé.
+  baseURL: import.meta.env.VITE_API_URL || '/api',
   withCredentials: true,
 });
 
@@ -21,7 +23,7 @@ api.interceptors.response.use(
       try {
         const refreshToken = useAppStore.getState().refreshToken;
         const { data } = await axios.post(
-          `${import.meta.env.VITE_API_URL || 'http://localhost:3001/api'}/auth/refresh`,
+          `${import.meta.env.VITE_API_URL || '/api'}/auth/refresh`,
           { refreshToken }
         );
         useAppStore.getState().setAuth(

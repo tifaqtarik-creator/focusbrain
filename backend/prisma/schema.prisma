@@ -7,6 +7,29 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum Gender {
+  HOMME
+  FEMME
+  NON_BINAIRE
+  PREFERE_NE_PAS_DIRE
+}
+
+enum DiagnosisStatus {
+  DIAGNOSTIQUE
+  EN_COURS
+  AUTO_DIAGNOSTIQUE
+  NON_DIAGNOSTIQUE
+}
+
+enum WorkObjective {
+  FOCUS_TRAVAIL
+  TROUVER_PARTENAIRES
+  RENCONTRER_TDAH
+  CREER_ROUTINES
+  PARTAGER_EXPERIENCE
+  GERER_EMOTIONS
+}
+
 enum TdahType {
   INATTENTIF
   HYPERACTIF
@@ -63,14 +86,28 @@ model User {
   googleId        String?      @unique
   name            String
   avatar          String?
-  timezone        String       @default("Europe/Paris")
+  phone           String?
+  gender          Gender?
+  birthDate       DateTime?
+  timezone        String       @default("Africa/Casablanca")
   tdahType        TdahType?
+  diagnosisStatus DiagnosisStatus?
   workStyle       WorkStyle    @default(FLEXIBLE)
+  workObjectives  WorkObjective[]
+  availabilities  String[]
+  bio             String?
   sensitivities   String[]
   goals           String[]
+  onboardingDone  Boolean      @default(false)
+  // ADAH AI — Avatar thérapeute personnalisé
+  aiAvatarUrl     String?      // URL du modèle 3D Ready Player Me (.glb)
+  aiAvatarGender  String?      @default("FEMME")  // FEMME | HOMME
+  aiVoicePref     String?      @default("douce")  // douce | posee | dynamique
+  aiAvatarStyle   String?      @default("chaleureux") // chaleureux | direct
   role            UserRole     @default(USER)
   isPremium       Boolean      @default(false)
   stripeId        String?      @unique
+  payments        Payment[]
   emailVerified   Boolean      @default(false)
   lowStimMode     Boolean      @default(false)
   createdAt       DateTime     @default(now())
@@ -88,13 +125,60 @@ model User {
   slotsCreated      Slot[]            @relation("SlotCreator")
   slotsJoined       Slot[]            @relation("SlotPartner")
   slotRequests      SlotRequest[]
+  slotFeedbacks     SlotFeedback[]
   location          UserLocation?
   messagesSent      Message[]         @relation("MessageFrom")
   messagesReceived  Message[]         @relation("MessageTo")
   proposalsSent     MeetingProposal[] @relation("ProposalFrom")
   proposalsReceived MeetingProposal[] @relation("ProposalTo")
+  adahSessions      AdahSession[]
+  adahMemories      AdahMemory[]
+  tdahPlaces        TdahPlace[]
 
   @@map("users")
+}
+
+// ── ADAH AI — Sessions TCC ───────────────────────────────────────────────────
+model AdahSession {
+  id        String        @id @default(cuid())
+  userId    String
+  title     String        @default("Session TCC")
+  mode       String        @default("chat")   // chat | voice | video | audio_tcc
+  mood       String?                           // humeur avant session
+  summary    String?                           // résumé automatique
+  insights   String[]                          // insights clés extraits
+  duration   Int           @default(0)         // durée en secondes
+  phaseIndex Int           @default(0)         // phase TCC courante (0-3)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  messages  AdahMessage[]
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@map("adah_sessions")
+}
+
+model AdahMessage {
+  id        String      @id @default(cuid())
+  sessionId String
+  role      String                             // user | assistant
+  content   String
+  emotion   String?                            // Hume AI (future)
+  tokens    Int?                               // tokens utilisés
+  createdAt DateTime    @default(now())
+  session   AdahSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  @@map("adah_messages")
+}
+
+// Mémoire long terme — résumés des sessions passées (RAG simplifié)
+model AdahMemory {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String   @default("insight")      // insight | goal | pattern | progress
+  content   String                             // texte résumé
+  tags      String[]
+  relevance Float    @default(1.0)             // score de pertinence
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@map("adah_memories")
 }
 
 model Session {
@@ -180,8 +264,12 @@ model ForumPost {
   id             String     @id @default(cuid())
   userId         String
   spaceId        ForumSpace
+  title          String     @default("")
   content        String
+  images         String[]
+  tags           String[]
   emojiReactions Json       @default("{}")
+  isPinned       Boolean    @default(false)
   parentId       String?
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
@@ -222,17 +310,39 @@ model CoachProfile {
 }
 
 model UserLocation {
-  id        String   @id @default(cuid())
-  userId    String   @unique
-  lat       Float
-  lng       Float
-  city      String?
-  country   String?
-  isVisible Boolean  @default(true)
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  lat          Float
+  lng          Float
+  city         String?
+  country      String?
+  isVisible    Boolean  @default(true)
+  status       String   @default("DISPONIBLE")  // statut personnalisé
+  statusExpiry DateTime?                          // expiration automatique
+  updatedAt    DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id])
   @@map("user_locations")
+}
+
+// Lieux TDAH-friendly validés par la communauté
+model TdahPlace {
+  id          String   @id @default(cuid())
+  name        String
+  type        String                             // CAFE | LIBRARY | COWORKING | PARK | OTHER
+  lat         Float
+  lng         Float
+  address     String?
+  city        String?
+  country     String   @default("MA")
+  isQuiet     Boolean  @default(false)
+  hasWifi     Boolean  @default(false)
+  tdahScore   Float    @default(0)              // score validé par communauté
+  validations Int      @default(0)              // nb de validations membres
+  addedBy     String
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [addedBy], references: [id])
+  @@map("tdah_places")
 }
 
 model Message {
@@ -272,27 +382,66 @@ model Slot {
   duration     Int
   status       String   @default("OPEN")
   liveRoomName String?
+  creatorTask  String?  // ce que le créateur veut faire
+  partnerTask  String?  // ce que le partenaire veut faire
   createdAt    DateTime @default(now())
 
-  creator  User          @relation("SlotCreator", fields: [creatorId], references: [id])
-  partner  User?         @relation("SlotPartner", fields: [partnerId], references: [id])
-  requests SlotRequest[]
+  creator   User           @relation("SlotCreator", fields: [creatorId], references: [id])
+  partner   User?          @relation("SlotPartner", fields: [partnerId], references: [id])
+  requests  SlotRequest[]
+  feedbacks SlotFeedback[]
 
   @@map("slots")
 }
 
-model SlotRequest {
+// Satisfaction post-session body doubling
+model SlotFeedback {
   id        String   @id @default(cuid())
   slotId    String
-  userId    String
-  status    String   @default("WAITING")
+  userId    String                         // qui donne l'avis
+  rating    Int                            // 1-5 étoiles
+  comment   String?                        // commentaire optionnel
+  mood      String?                        // emoji humeur après session
   createdAt DateTime @default(now())
+
+  slot Slot @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([slotId, userId])              // 1 avis par personne par session
+  @@map("slot_feedbacks")
+}
+
+model SlotRequest {
+  id            String   @id @default(cuid())
+  slotId        String
+  userId        String
+  status        String   @default("WAITING")
+  candidateTask String?  // ce que le candidat veut faire
+  createdAt     DateTime @default(now())
 
   slot Slot @relation(fields: [slotId], references: [id])
   user User @relation(fields: [userId], references: [id])
 
   @@unique([slotId, userId])
   @@map("slot_requests")
+}
+
+// ── Paiements PayPal ─────────────────────────────────────────────────────────
+model Payment {
+  id          String   @id @default(cuid())
+  userId      String
+  orderId     String   @unique  // ID PayPal
+  amount      Float
+  currency    String   @default("EUR")
+  status      String   @default("PENDING") // PENDING | COMPLETED | FAILED | REFUNDED
+  plan        String   @default("PREMIUM")  // PREMIUM | DONATION
+  method      String?  // paypal | card | google_pay
+  paypalEmail String?
+  createdAt   DateTime @default(now())
+  completedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id])
+  @@map("payments")
 }
 
 model RefreshToken {
