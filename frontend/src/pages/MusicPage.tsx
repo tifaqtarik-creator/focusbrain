@@ -146,7 +146,7 @@ export default function MusicPage() {
         <div className="flex items-center justify-between mb-5">
           <div>
             <h1 className="text-2xl font-black text-gray-900">🎵 Musique Focus TDAH</h1>
-            <p className="text-gray-500 text-sm">Musique, bruits, livres audio & podcasts pour ton focus</p>
+            <p className="text-gray-500 text-sm">Trouve ton ambiance idéale de concentration (Spotify)</p>
           </div>
           <div className="flex gap-2">
             <button onClick={surpriseMe}
@@ -267,7 +267,7 @@ export default function MusicPage() {
         </div>
 
         <p className="text-center text-xs text-gray-300 mt-6">
-          🎵 Lecture via Spotify & YouTube · 🌫️ Bruits générés en direct (WebAudio) · Aucune donnée stockée
+          🎵 Lecture via Spotify · 🌫️ Bruits générés en direct (WebAudio) · Aucune donnée stockée
         </p>
       </div>
 

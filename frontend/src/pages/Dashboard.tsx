@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import FullCalendar from '@fullcalendar/react';
 import timeGridPlugin from '@fullcalendar/timegrid';
@@ -12,8 +12,30 @@ import { useSlotStore } from '../stores/useSlotStore';
 import { useI18n } from '../lib/i18n';
 import SlotNotifications from '../components/slots/SlotNotifications';
 import FocusNow from '../components/focus/FocusNow';
+import { getSocket } from '../lib/socket';
+import {
+  reliability, getFavoriteIds, addFavorite, removeFavorite,
+  getKpis, ensureNotifPermission, notify, googleCalendarUrl,
+} from '../lib/bodyDoubling';
 
 const DURATIONS = [15, 25, 50, 75];
+const TASK_CATEGORIES = [
+  { id: 'travail', label: 'Travail', emoji: '💼' },
+  { id: 'etudes',  label: 'Études',  emoji: '📚' },
+  { id: 'creatif', label: 'Créatif', emoji: '🎨' },
+  { id: 'admin',   label: 'Admin',   emoji: '📄' },
+  { id: 'perso',   label: 'Perso',   emoji: '🏠' },
+  { id: 'sante',   label: 'Santé',   emoji: '❤️' },
+];
+const AMBIANCES = [
+  { id: 'silence',  label: '🤫 Silence total' },
+  { id: 'echanges', label: '💬 Petits échanges' },
+];
+const ENERGIES = [
+  { id: 'faible', label: '🪫 Faible' },
+  { id: 'moyen',  label: '🔋 Moyen' },
+  { id: 'eleve',  label: '⚡ Élevé' },
+];
 
 function slotColor(status: string) {
   if (status === 'OPEN')      return '#10b981';
@@ -49,10 +71,18 @@ export default function Dashboard() {
   const [duration, setDuration]       = useState(25);
   const [creatorTask,   setCreatorTask]   = useState('');
   const [candidateTask, setCandidateTask] = useState('');
+  // Formulaire détaillé de création
+  const [taskList,     setTaskList]     = useState<string[]>([]);
+  const [slotCategory, setSlotCategory] = useState('travail');
+  const [ambiance,     setAmbiance]     = useState('silence');
+  const [energy,       setEnergy]       = useState('moyen');
   // États pour l'édition
   const [editDuration, setEditDuration] = useState(25);
   const [editTask,     setEditTask]     = useState('');
   const [editDate,     setEditDate]     = useState('');
+  // Favoris + KPI
+  const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
+  const [kpis, setKpis]               = useState<any>(null);
 
   // ── Queries ────────────────────────────────────────────────────────────────
   const { data: slots = [] } = useQuery({
@@ -73,14 +103,50 @@ export default function Dashboard() {
     refetchInterval: 15000,
   });
 
+  // ── Favoris, KPI, permission de notification ──
+  useEffect(() => {
+    getFavoriteIds().then(setFavoriteIds).catch(() => {});
+    getKpis().then(setKpis).catch(() => {});
+    ensureNotifPermission();
+  }, []);
+
+  // ── Rappels de session en temps réel (push navigateur) ──
+  useEffect(() => {
+    const socket = getSocket();
+    const onReminder = (d: any) => {
+      notify('⏰ Ta session FocusBrain', `Elle commence dans ${d.minutes} min (${d.duration} min). Prépare-toi 💜`);
+      qc.invalidateQueries({ queryKey: ['slots-mine'] });
+    };
+    socket.on('session:reminder', onReminder);
+    return () => { socket.off('session:reminder', onReminder); };
+  }, [qc]);
+
+  const isFavorite = (id?: string) => !!id && favoriteIds.includes(id);
+  const toggleFavorite = async (id?: string) => {
+    if (!id) return;
+    if (isFavorite(id)) { setFavoriteIds(p => p.filter(x => x !== id)); await removeFavorite(id).catch(() => {}); }
+    else { setFavoriteIds(p => [...p, id]); await addFavorite(id).catch(() => {}); }
+  };
+  const addSlotTask = () => {
+    const t = creatorTask.trim();
+    if (t && taskList.length < 8) { setTaskList(p => [...p, t]); setCreatorTask(''); }
+  };
+  const metaLabel = (s: any) => {
+    const c = TASK_CATEGORIES.find(x => x.id === s.category);
+    const a = AMBIANCES.find(x => x.id === s.ambiance);
+    const e = ENERGIES.find(x => x.id === s.energy);
+    return [c && `${c.emoji} ${c.label}`, a && a.label, e && e.label].filter(Boolean).join('  ·  ');
+  };
+  const slotTasks = (s: any): string[] => (s.creatorTasks?.length ? s.creatorTasks : (s.creatorTask ? [s.creatorTask] : []));
+
   // ── Mutations ──────────────────────────────────────────────────────────────
   const createSlot = useMutation({
-    mutationFn: (data: { startTime: string; duration: number; creatorTask?: string }) => api.post('/slots', data),
+    mutationFn: (data: any) => api.post('/slots', data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['slots'] });
       qc.invalidateQueries({ queryKey: ['slots-mine'] });
       setCreateModal(null);
-      setCreatorTask('');
+      setCreatorTask(''); setTaskList([]); setSlotCategory('travail'); setAmbiance('silence'); setEnergy('moyen');
     },
   });
 
@@ -176,6 +242,32 @@ export default function Dashboard() {
           </p>
         </div>
 
+        {/* KPI Body Doubling */}
+        {kpis && (
+          <div className="px-4 pt-4">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">📊 Indicateurs</p>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="bg-teal-50 rounded-xl p-2 text-center">
+                <p className="text-base font-black text-teal-700">{kpis.activation?.rate ?? 0}%</p>
+                <p className="text-[10px] text-gray-500 leading-tight">1ʳᵉ session</p>
+              </div>
+              <div className="bg-emerald-50 rounded-xl p-2 text-center">
+                <p className="text-base font-black text-emerald-700">{kpis.completionRate ?? 0}%</p>
+                <p className="text-[10px] text-gray-500 leading-tight">complétion</p>
+              </div>
+              <div className="bg-amber-50 rounded-xl p-2 text-center">
+                <p className="text-base font-black text-amber-700">{kpis.noShowRate ?? 0}%</p>
+                <p className="text-[10px] text-gray-500 leading-tight">no-show</p>
+              </div>
+            </div>
+            {kpis.me && (
+              <p className="text-[11px] text-gray-400 mt-2 text-center">
+                Toi : {kpis.me.completed} session(s) ✅ · {reliability({ sessionsCompleted: kpis.me.completed, sessionsNoShow: kpis.me.noShow }).label}
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Sessions confirmées */}
         <div className="p-4">
           <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-3">
@@ -203,6 +295,15 @@ export default function Dashboard() {
                           {' · '}{s.duration}min
                         </p>
                       </div>
+                    </div>
+                    {/* Fiabilité + favori + agenda */}
+                    <div className="flex items-center gap-2 mb-2 flex-wrap text-[11px]">
+                      <span className="text-teal-700 font-semibold">{reliability(partner).emoji} {reliability(partner).label}</span>
+                      <button onClick={() => toggleFavorite(partner?.id)} title="Partenaire favori" className="text-sm leading-none">
+                        {isFavorite(partner?.id) ? '⭐' : '☆'}
+                      </button>
+                      <a href={googleCalendarUrl({ title: `Focus avec ${partner?.name || 'partenaire'}`, start: new Date(s.startTime), durationMin: s.duration, details: s.creatorTask || '' })}
+                        target="_blank" rel="noreferrer" className="text-teal-700 hover:underline">📅 Agenda</a>
                     </div>
                     <button
                       onClick={() => navigate(`/live/${s.id}`)}
@@ -268,12 +369,15 @@ export default function Dashboard() {
                       </div>
                     </div>
 
-                    {/* Tâche du créateur */}
-                    {s.creatorTask && (
-                      <p className="text-xs text-teal-700 bg-teal-50 rounded-lg px-2 py-1 mb-2">
-                        🎯 "{s.creatorTask}"
-                      </p>
+                    {/* Tâches + contexte du créateur */}
+                    {slotTasks(s).length > 0 && (
+                      <div className="mb-1 space-y-1">
+                        {slotTasks(s).map((t: string, i: number) => (
+                          <p key={i} className="text-xs text-teal-700 bg-teal-50 rounded-lg px-2 py-1">🎯 {t}</p>
+                        ))}
+                      </div>
                     )}
+                    {metaLabel(s) && <p className="text-[11px] text-gray-400 mb-2">{metaLabel(s)}</p>}
 
                     {slotCandidates.length > 0 && (
                       <div className="mb-2 space-y-1">
@@ -291,8 +395,13 @@ export default function Dashboard() {
                                   }
                                 </div>
                                 <div>
-                                  <p className="text-xs font-bold text-gray-800">{r.user?.name}</p>
-                                  {r.user?.tdahType && <p className="text-[10px] text-gray-400">{r.user.tdahType.replace(/_/g, ' ')}</p>}
+                                  <p className="text-xs font-bold text-gray-800 flex items-center gap-1">
+                                    {r.user?.name}
+                                    <button onClick={() => toggleFavorite(r.user?.id)} title="Favori" className="text-xs leading-none">{isFavorite(r.user?.id) ? '⭐' : '☆'}</button>
+                                  </p>
+                                  <p className="text-[10px] text-gray-400">
+                                    {reliability(r.user).emoji} {reliability(r.user).label}{r.user?.tdahType ? ` · ${r.user.tdahType.replace(/_/g, ' ')}` : ''}
+                                  </p>
                                 </div>
                               </div>
                               <button
@@ -347,6 +456,13 @@ export default function Dashboard() {
 
       {/* ── CALENDRIER ──────────────────────────────────────────────────────── */}
       <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Onboarding : pousser vers la 1ère session */}
+        {kpis && kpis.me && kpis.me.completed === 0 && (
+          <div className="bg-amber-50 border-b border-amber-200 px-6 py-2 text-center text-sm text-amber-800 font-semibold">
+            👋 Bienvenue ! Lance ta 1ʳᵉ session de focus en 1 clic ci-dessous ⬇️
+          </div>
+        )}
+
         {/* Focus instantané + salles 24/7 */}
         <FocusNow />
 
@@ -419,7 +535,7 @@ export default function Dashboard() {
           <motion.div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             onClick={() => setCreateModal(null)}>
-            <motion.div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl"
+            <motion.div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl max-h-[92vh] overflow-y-auto"
               initial={{ scale: 0.95, y: 10 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 10 }}
               onClick={e => e.stopPropagation()}>
               <h3 className="font-black text-gray-900 text-xl mb-1">Créer un créneau</h3>
@@ -441,27 +557,74 @@ export default function Dashboard() {
                 ))}
               </div>
 
-              {/* Champ tâche — simple, 1 ligne */}
-              <div className="mb-5">
-                <p className="text-sm font-bold text-gray-700 mb-2">
-                  🎯 Sur quoi vas-tu travailler ?
-                  <span className="text-gray-400 font-normal ml-1">(optionnel)</span>
-                </p>
+              {/* Catégorie de tâche */}
+              <p className="text-sm font-bold text-gray-700 mb-2">Catégorie</p>
+              <div className="grid grid-cols-3 gap-2 mb-4">
+                {TASK_CATEGORIES.map(c => (
+                  <button key={c.id} onClick={() => setSlotCategory(c.id)}
+                    className={`py-2 rounded-xl text-xs font-bold transition-colors ${slotCategory === c.id ? 'bg-teal-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                    {c.emoji} {c.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Plusieurs tâches */}
+              <p className="text-sm font-bold text-gray-700 mb-2">
+                🎯 Tes tâches <span className="text-gray-400 font-normal ml-1">(plusieurs possibles)</span>
+              </p>
+              <div className="flex gap-2 mb-2">
                 <input
                   value={creatorTask}
                   onChange={e => setCreatorTask(e.target.value)}
-                  placeholder="Ex: Finir mon rapport, réviser mes fiches..."
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addSlotTask(); } }}
+                  placeholder="Ex: Finir mon rapport..."
                   maxLength={200}
-                  className="w-full border-2 border-gray-200 focus:border-teal-400 rounded-xl px-4 py-3 text-sm outline-none transition-colors"
+                  className="flex-1 border-2 border-gray-200 focus:border-teal-400 rounded-xl px-4 py-2.5 text-sm outline-none transition-colors"
                 />
-                <p className="text-xs text-gray-400 mt-1 text-right">{creatorTask.length}/200</p>
+                <button onClick={addSlotTask} disabled={!creatorTask.trim() || taskList.length >= 8}
+                  className="bg-teal-100 text-teal-700 font-black px-4 rounded-xl hover:bg-teal-200 disabled:opacity-40">+</button>
+              </div>
+              {taskList.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-4">
+                  {taskList.map((t, i) => (
+                    <span key={i} className="inline-flex items-center gap-1 bg-teal-50 text-teal-800 text-xs font-semibold rounded-lg px-2 py-1">
+                      {i + 1}. {t}
+                      <button onClick={() => setTaskList(p => p.filter((_, j) => j !== i))} className="text-teal-400 hover:text-red-500 ml-0.5">✕</button>
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Ambiance */}
+              <p className="text-sm font-bold text-gray-700 mb-2">Ambiance</p>
+              <div className="grid grid-cols-2 gap-2 mb-4">
+                {AMBIANCES.map(a => (
+                  <button key={a.id} onClick={() => setAmbiance(a.id)}
+                    className={`py-2 rounded-xl text-xs font-bold transition-colors ${ambiance === a.id ? 'bg-teal-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                    {a.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Niveau d'énergie */}
+              <p className="text-sm font-bold text-gray-700 mb-2">Niveau d'énergie</p>
+              <div className="grid grid-cols-3 gap-2 mb-5">
+                {ENERGIES.map(en => (
+                  <button key={en.id} onClick={() => setEnergy(en.id)}
+                    className={`py-2 rounded-xl text-xs font-bold transition-colors ${energy === en.id ? 'bg-teal-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                    {en.label}
+                  </button>
+                ))}
               </div>
 
               <button
                 onClick={() => createSlot.mutate({
                   startTime: createModal.start.toISOString(),
                   duration,
-                  creatorTask: creatorTask.trim() || undefined,
+                  tasks: [...taskList, creatorTask.trim()].filter(Boolean),
+                  category: slotCategory,
+                  ambiance,
+                  energy,
                 })}
                 disabled={createSlot.isPending}
                 className="w-full bg-teal-500 text-white font-black py-4 rounded-xl hover:bg-teal-600 transition-colors disabled:opacity-50 text-base"
@@ -609,13 +772,14 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* Tâche du créateur */}
-              {joinModal.creatorTask && (
+              {/* Tâches + contexte du créateur */}
+              {(slotTasks(joinModal).length > 0 || metaLabel(joinModal)) && (
                 <div className="bg-teal-50 border border-teal-100 rounded-xl px-4 py-3 mb-4">
-                  <p className="text-xs font-bold text-teal-600 mb-1">
-                    🎯 {joinModal.creator?.name} va travailler sur :
-                  </p>
-                  <p className="text-sm text-teal-800 font-medium">"{joinModal.creatorTask}"</p>
+                  <p className="text-xs font-bold text-teal-600 mb-1">🎯 {joinModal.creator?.name} va travailler sur :</p>
+                  {slotTasks(joinModal).map((t: string, i: number) => (
+                    <p key={i} className="text-sm text-teal-800 font-medium">• {t}</p>
+                  ))}
+                  {metaLabel(joinModal) && <p className="text-xs text-teal-600 mt-2">{metaLabel(joinModal)}</p>}
                 </div>
               )}
 

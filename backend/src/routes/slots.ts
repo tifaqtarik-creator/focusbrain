@@ -39,8 +39,8 @@ router.get('/', async (req: any, res) => {
         status: { in: ['OPEN', 'PENDING', 'CONFIRMED'] },
       },
       include: {
-        creator: { select: { id: true, name: true, tdahType: true, avatar: true } },
-        partner: { select: { id: true, name: true, tdahType: true, avatar: true } },
+        creator: { select: { id: true, name: true, tdahType: true, avatar: true, sessionsCompleted: true, sessionsNoShow: true } },
+        partner: { select: { id: true, name: true, tdahType: true, avatar: true, sessionsCompleted: true, sessionsNoShow: true } },
         requests: {
           where: { userId: req.userId },
           select: { status: true },
@@ -67,11 +67,11 @@ router.get('/mine', async (req: any, res) => {
         startTime: { gte: new Date(Date.now() - 2 * 60 * 60 * 1000) }, // inclure 2h passées
       },
       include: {
-        creator: { select: { id: true, name: true, tdahType: true, avatar: true } },
-        partner: { select: { id: true, name: true, tdahType: true, avatar: true } },
+        creator: { select: { id: true, name: true, tdahType: true, avatar: true, sessionsCompleted: true, sessionsNoShow: true } },
+        partner: { select: { id: true, name: true, tdahType: true, avatar: true, sessionsCompleted: true, sessionsNoShow: true } },
         requests: {
           include: {
-            user: { select: { id: true, name: true, tdahType: true, avatar: true } },
+            user: { select: { id: true, name: true, tdahType: true, avatar: true, sessionsCompleted: true, sessionsNoShow: true } },
           },
           orderBy: { createdAt: 'asc' },
         },
@@ -109,13 +109,19 @@ router.post('/', async (req: any, res) => {
   const schema = z.object({
     startTime:   z.string().datetime(),
     duration:    z.number().refine(d => [15, 25, 50, 75].includes(d)),
-    creatorTask: z.string().max(200).optional(), // tâche du créateur
+    creatorTask: z.string().max(200).optional(),
+    tasks:       z.array(z.string().max(200)).max(8).optional(),
+    category:    z.string().max(40).optional(),
+    ambiance:    z.string().max(40).optional(),
+    energy:      z.string().max(20).optional(),
   });
 
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Données invalides' });
 
-  const { startTime, duration, creatorTask } = parsed.data;
+  const { startTime, duration } = parsed.data;
+  const tasks = (parsed.data.tasks || (parsed.data.creatorTask ? [parsed.data.creatorTask] : []))
+    .map(t => t.trim()).filter(Boolean).slice(0, 8);
 
   // Vérifier chevauchement
   const existing = await prisma.slot.findFirst({
@@ -137,7 +143,11 @@ router.post('/', async (req: any, res) => {
       startTime: new Date(startTime),
       duration,
       status: 'OPEN',
-      creatorTask: creatorTask?.trim() || null,
+      creatorTask: tasks[0] || null,
+      creatorTasks: tasks,
+      category: parsed.data.category || null,
+      ambiance: parsed.data.ambiance || null,
+      energy: parsed.data.energy || null,
     },
     include: {
       creator: { select: { id: true, name: true, tdahType: true, avatar: true } },
@@ -390,6 +400,15 @@ router.get('/:id/token', async (req: any, res) => {
   const userName = isCreator ? slot.creator.name : (slot.partner?.name || 'Partenaire');
   const roomName = slot.liveRoomName || `focusbrain-${slot.id}`;
 
+  // KPI : marquer la session comme lancée + 1ère session de l'utilisateur
+  if (!slot.startedAt) {
+    await prisma.slot.update({ where: { id: slot.id }, data: { startedAt: new Date() } });
+  }
+  await prisma.user.updateMany({
+    where: { id: req.userId, firstSessionAt: null },
+    data: { firstSessionAt: new Date() },
+  });
+
   const token = await generateLiveKitToken(req.userId, userName, roomName);
 
   if (!token) {
@@ -449,6 +468,49 @@ router.get('/:id/feedbacks', async (req: any, res) => {
     ? feedbacks.reduce((a, f) => a + f.rating, 0) / feedbacks.length
     : null;
   res.json({ feedbacks, average: avg, count: feedbacks.length });
+});
+
+// ── POST /api/slots/:id/complete — Marquer la session terminée (KPI + fiabilité) ──
+router.post('/:id/complete', async (req: any, res) => {
+  const slot = await prisma.slot.findUnique({ where: { id: req.params.id } });
+  if (!slot) return res.status(404).json({ error: 'Session introuvable' });
+  const isParticipant = slot.creatorId === req.userId || slot.partnerId === req.userId;
+  if (!isParticipant) return res.status(403).json({ error: 'Non autorisé' });
+
+  // Une seule comptabilisation (le 1er qui termine pose completedAt)
+  if (!slot.completedAt) {
+    await prisma.slot.update({
+      where: { id: slot.id },
+      data: { completedAt: new Date(), startedAt: slot.startedAt || new Date() },
+    });
+    const ids = [slot.creatorId, slot.partnerId].filter(Boolean) as string[];
+    if (ids.length) {
+      await prisma.user.updateMany({ where: { id: { in: ids } }, data: { sessionsCompleted: { increment: 1 } } });
+    }
+  }
+  res.json({ success: true });
+});
+
+// ── GET /api/slots/kpis — Indicateurs Body Doubling ──────────────────────────
+router.get('/kpis', async (req: any, res) => {
+  const [confirmed, started, completed, noShow, usersTotal, usersWithSession, myDone, myNoShow] = await Promise.all([
+    prisma.slot.count({ where: { status: 'CONFIRMED' } }),
+    prisma.slot.count({ where: { startedAt: { not: null } } }),
+    prisma.slot.count({ where: { completedAt: { not: null } } }),
+    prisma.slot.count({ where: { noShow: true } }),
+    prisma.user.count(),
+    prisma.user.count({ where: { firstSessionAt: { not: null } } }),
+    prisma.user.findUnique({ where: { id: req.userId }, select: { sessionsCompleted: true, sessionsNoShow: true, firstSessionAt: true } }).then(u => u?.sessionsCompleted || 0),
+    prisma.user.findUnique({ where: { id: req.userId }, select: { sessionsNoShow: true } }).then(u => u?.sessionsNoShow || 0),
+  ]);
+  const denom = completed + noShow;
+  res.json({
+    activation: { rate: usersTotal ? Math.round((usersWithSession / usersTotal) * 100) : 0, usersWithSession, usersTotal },
+    completionRate: started ? Math.round((completed / started) * 100) : 0,
+    noShowRate: denom ? Math.round((noShow / denom) * 100) : 0,
+    totals: { confirmed, started, completed, noShow },
+    me: { completed: myDone, noShow: myNoShow },
+  });
 });
 
 // ── GET /api/slots/my-feedbacks — Mes stats de satisfaction ──────────────────

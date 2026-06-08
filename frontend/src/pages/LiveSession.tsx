@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '../lib/api';
 import { getSocket } from '../lib/socket';
+import { completeSession } from '../lib/bodyDoubling';
 
 // LiveKit imports
 import {
@@ -100,6 +101,7 @@ export default function LiveSession() {
 
   const leave = () => {
     clearInterval(timerRef.current!);
+    if (slotId) completeSession(slotId);   // KPI complétion + fiabilité
     setPhase('done');
     setShowFeedback(true);
   };

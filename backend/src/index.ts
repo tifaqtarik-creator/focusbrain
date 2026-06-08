@@ -15,7 +15,9 @@ import slotRoutes from './routes/slots';
 import paymentRoutes from './routes/payments';
 import adahRoutes from './routes/adah';
 import mapRoutes from './routes/map';
+import socialRoutes from './routes/social';
 import { registerSocketHandlers } from './socket/handlers';
+import { startReminderScheduler } from './lib/reminders';
 import { authMiddleware } from './middleware/auth';
 import { rateLimiter } from './middleware/rateLimit';
 
@@ -61,6 +63,7 @@ app.use('/api/slots', authMiddleware, slotRoutes);
 app.use('/api/map', authMiddleware, mapRoutes);
 app.use('/api/payments', authMiddleware, paymentRoutes);
 app.use('/api/adah',    authMiddleware, adahRoutes);
+app.use('/api/social',  authMiddleware, socialRoutes);
 
 app.get('/health', (_req, res) => res.json({ status: 'ok', service: 'focusbrain-api' }));
 
@@ -68,6 +71,7 @@ app.get('/health', (_req, res) => res.json({ status: 'ok', service: 'focusbrain-
 app.set('io', io);
 
 registerSocketHandlers(io);
+startReminderScheduler(io);
 
 const PORT = process.env.PORT || 3001;
 httpServer.listen(PORT, () => {

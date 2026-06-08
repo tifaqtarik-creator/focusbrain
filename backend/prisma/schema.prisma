@@ -99,6 +99,10 @@ model User {
   sensitivities   String[]
   goals           String[]
   onboardingDone  Boolean      @default(false)
+  // Body Doubling — fiabilité & KPI
+  sessionsCompleted Int        @default(0)
+  sessionsNoShow    Int        @default(0)
+  firstSessionAt    DateTime?
   // ADAH AI — Avatar thérapeute personnalisé
   aiAvatarUrl     String?      // URL du modèle 3D Ready Player Me (.glb)
   aiAvatarGender  String?      @default("FEMME")  // FEMME | HOMME
@@ -126,6 +130,8 @@ model User {
   slotsJoined       Slot[]            @relation("SlotPartner")
   slotRequests      SlotRequest[]
   slotFeedbacks     SlotFeedback[]
+  favorites         Favorite[]        @relation("FavUser")
+  favoritedBy       Favorite[]        @relation("FavTarget")
   location          UserLocation?
   messagesSent      Message[]         @relation("MessageFrom")
   messagesReceived  Message[]         @relation("MessageTo")
@@ -382,8 +388,16 @@ model Slot {
   duration     Int
   status       String   @default("OPEN")
   liveRoomName String?
-  creatorTask  String?  // ce que le créateur veut faire
+  creatorTask  String?  // 1ère tâche (compat)
   partnerTask  String?  // ce que le partenaire veut faire
+  creatorTasks String[] @default([]) // plusieurs tâches du créateur
+  category     String?  // catégorie de tâche (travail/etudes/creatif/admin/perso/sante)
+  ambiance     String?  // 'silence' | 'echanges'
+  energy       String?  // 'faible' | 'moyen' | 'eleve'
+  reminderSent Boolean  @default(false) // rappel envoyé (anti no-show)
+  startedAt    DateTime? // session réellement lancée (KPI)
+  completedAt  DateTime? // session terminée (KPI)
+  noShow       Boolean  @default(false) // absence constatée (KPI)
   createdAt    DateTime @default(now())
 
   creator   User           @relation("SlotCreator", fields: [creatorId], references: [id])
@@ -424,6 +438,20 @@ model SlotRequest {
 
   @@unique([slotId, userId])
   @@map("slot_requests")
+}
+
+// Favoris / re-match — un membre marque un partenaire apprécié
+model Favorite {
+  id        String   @id @default(cuid())
+  userId    String   // celui qui ajoute en favori
+  targetId  String   // le partenaire favori
+  createdAt DateTime @default(now())
+
+  user   User @relation("FavUser", fields: [userId], references: [id], onDelete: Cascade)
+  target User @relation("FavTarget", fields: [targetId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, targetId])
+  @@map("favorites")
 }
 
 // ── Paiements PayPal ─────────────────────────────────────────────────────────
