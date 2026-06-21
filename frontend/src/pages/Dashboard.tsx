@@ -257,8 +257,6 @@ export default function Dashboard() {
   const confirmed = mySlots.filter((s: any) => s.status === 'CONFIRMED');
   const created   = mySlots.filter((s: any) => s.status !== 'CONFIRMED' && s.creatorId === user?.id);
 
-  const canJoin = (s: any) => Math.abs(new Date().getTime() - new Date(s.startTime).getTime()) < 15 * 60000;
-
   return (
     <div className="flex h-full bg-gray-50 overflow-hidden">
       <SlotNotifications />
@@ -309,7 +307,6 @@ export default function Dashboard() {
             : confirmed.map((s: any) => {
                 const partner = s.creatorId === user?.id ? s.partner : s.creator;
                 const start = new Date(s.startTime);
-                const joinable = canJoin(s);
                 return (
                   <motion.div key={s.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
                     className="bg-teal-50 border border-teal-200 rounded-xl p-3 mb-2">
@@ -338,12 +335,9 @@ export default function Dashboard() {
                     </div>
                     <button
                       onClick={() => navigate(`/live/${s.id}`)}
-                      disabled={!joinable}
-                      className={`w-full py-2 rounded-xl text-xs font-black transition-colors ${
-                        joinable ? 'bg-teal-500 text-white hover:bg-teal-600' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                      }`}
+                      className="w-full py-2 rounded-xl text-xs font-black transition-colors bg-teal-500 text-white hover:bg-teal-600"
                     >
-                      {joinable ? '🎥 Rejoindre le Live' : `⏰ ${start.toLocaleTimeString('fr', { hour: '2-digit', minute: '2-digit' })}`}
+                      🎥 Rejoindre le Live
                     </button>
                   </motion.div>
                 );
@@ -952,12 +946,10 @@ export default function Dashboard() {
                   <div className="text-4xl mb-2">✅</div>
                   <p className="font-bold text-teal-700 mb-1">Session confirmée avec</p>
                   <p className="font-black text-teal-900 text-lg">{detailModal.partner?.name}</p>
-                  {canJoin(detailModal) && (
-                    <button onClick={() => navigate(`/live/${detailModal.id}`)}
-                      className="mt-4 bg-teal-500 text-white font-black px-6 py-3 rounded-xl hover:bg-teal-600 transition-colors">
-                      🎥 Rejoindre le Live
-                    </button>
-                  )}
+                  <button onClick={() => navigate(`/live/${detailModal.id}`)}
+                    className="mt-4 bg-teal-500 text-white font-black px-6 py-3 rounded-xl hover:bg-teal-600 transition-colors">
+                    🎥 Rejoindre le Live
+                  </button>
                 </div>
               ) : (detailModal.requests || []).length === 0 ? (
                 <div className="text-center py-10 text-gray-400">
