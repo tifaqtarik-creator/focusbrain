@@ -48,3 +48,5 @@ services:
         sync: false
       - key: LIVEKIT_API_SECRET
         sync: false
+      - key: CLOUDINARY_URL
+        sync: false          # stockage durable des photos/pièces jointes (cloudinary://key:secret@cloud)

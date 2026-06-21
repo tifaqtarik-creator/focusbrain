@@ -5,6 +5,7 @@ import { AuthRequest } from '../middleware/auth';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import { persistUpload } from '../lib/storage';
 
 const router = Router();
 
@@ -127,7 +128,8 @@ router.post('/me/avatar', (req: AuthRequest, res) => {
     if (!file) return res.status(400).json({ error: 'Aucune image reçue' });
 
     const BASE = process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 3001}`;
-    const avatarUrl = `${BASE}/uploads/avatars/${file.filename}`;
+    const cloud = await persistUpload(file.path, 'avatars'); // Cloudinary si configuré
+    const avatarUrl = cloud || `${BASE}/uploads/avatars/${file.filename}`;
 
     try {
       // Supprimer l'ancienne photo locale (si hébergée chez nous)

@@ -6,6 +6,7 @@ import { AccessToken } from 'livekit-server-sdk';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import { persistUpload } from '../lib/storage';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -699,7 +700,9 @@ router.post('/:id/chat-upload', (req: any, res) => {
     const a = await assertParticipant(req.params.id, req.userId);
     if (!a.ok) return res.status(a.code).json({ error: a.error });
     const BASE = process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 3001}`;
-    res.json({ url: `${BASE}/uploads/chat/${file.filename}`, name: file.originalname, mime: file.mimetype });
+    const cloud = await persistUpload(file.path, 'chat'); // Cloudinary si configuré
+    const url = cloud || `${BASE}/uploads/chat/${file.filename}`;
+    res.json({ url, name: file.originalname, mime: file.mimetype });
   });
 });
 
