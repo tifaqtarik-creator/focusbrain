@@ -1,6 +1,10 @@
-import { useEffect, useState, useRef, FormEvent } from 'react';
+import { useEffect, useState, useRef, FormEvent, ReactNode } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import {
+  Mic, MicOff, Video, VideoOff, MonitorUp, MessageSquare,
+  Coffee, Clock, PhoneOff, Maximize, Minimize, Send,
+} from 'lucide-react';
 import api from '../lib/api';
 import { getSocket, connectSocket } from '../lib/socket';
 import { completeSession, reliability, getFavoriteIds, addFavorite, removeFavorite } from '../lib/bodyDoubling';
@@ -65,7 +69,7 @@ function FbChat({ onClose }: { onClose: () => void }) {
           className="flex-1 min-w-0 rounded-xl px-3 py-2 text-sm text-white outline-none border border-white/15 focus:border-teal-400"
           style={{ background: '#2a3142' }}
         />
-        <button type="submit" className="bg-teal-500 hover:bg-teal-600 text-white font-black px-3.5 rounded-xl shrink-0">➤</button>
+        <button type="submit" aria-label="Envoyer" className="bg-teal-500 hover:bg-teal-600 text-white px-3.5 rounded-xl shrink-0 flex items-center justify-center"><Send size={18} /></button>
       </form>
     </div>
   );
@@ -119,9 +123,9 @@ function WaitingForPartner({ name }: { name?: string }) {
 
 // Bouton de contrôle réutilisable (icône + libellé FR, état actif/inactif)
 function CtrlBtn({ icon, label, active = true, danger = false, onClick }: {
-  icon: string; label: string; active?: boolean; danger?: boolean; onClick: () => void;
+  icon: ReactNode; label: string; active?: boolean; danger?: boolean; onClick: () => void;
 }) {
-  const base = 'flex flex-col items-center justify-center gap-0.5 rounded-2xl px-3 py-2 min-w-[64px] text-[11px] font-bold transition-colors';
+  const base = 'flex flex-col items-center justify-center gap-1 rounded-2xl px-3 py-2 min-w-[64px] text-[11px] font-bold transition-colors';
   const cls = danger
     ? 'bg-red-500/90 hover:bg-red-500 text-white'
     : active
@@ -129,7 +133,7 @@ function CtrlBtn({ icon, label, active = true, danger = false, onClick }: {
       : 'bg-gray-700 hover:bg-gray-600 text-gray-300';
   return (
     <button onClick={onClick} className={`${base} ${cls}`}>
-      <span className="text-lg leading-none">{icon}</span>
+      <span className="flex items-center justify-center h-5">{icon}</span>
       <span className="leading-none">{label}</span>
     </button>
   );
@@ -172,18 +176,18 @@ function RoomBody(props: {
       <div className="shrink-0 bg-gray-800 border-t border-gray-700 px-4 py-2.5 flex items-center justify-center gap-2 flex-wrap">
         {/* Groupe média */}
         <div className="flex items-center gap-2 bg-gray-900/50 rounded-2xl p-1">
-          <CtrlBtn icon={mic.enabled ? '🎤' : '🔇'} label={mic.enabled ? 'Micro' : 'Coupé'} active={mic.enabled} onClick={() => mic.toggle()} />
-          <CtrlBtn icon={cam.enabled ? '📹' : '🚫'} label={cam.enabled ? 'Caméra' : 'Off'} active={cam.enabled} onClick={() => cam.toggle()} />
-          <CtrlBtn icon="🖥️" label={screen.enabled ? 'Arrêter' : 'Écran'} active={screen.enabled} onClick={() => screen.toggle()} />
-          <CtrlBtn icon="💬" label="Discussion" active={chatOpen} onClick={() => setChatOpen(!chatOpen)} />
+          <CtrlBtn icon={mic.enabled ? <Mic size={20} /> : <MicOff size={20} />} label={mic.enabled ? 'Micro' : 'Coupé'} active={mic.enabled} onClick={() => mic.toggle()} />
+          <CtrlBtn icon={cam.enabled ? <Video size={20} /> : <VideoOff size={20} />} label={cam.enabled ? 'Caméra' : 'Off'} active={cam.enabled} onClick={() => cam.toggle()} />
+          <CtrlBtn icon={<MonitorUp size={20} />} label={screen.enabled ? 'Arrêter' : 'Écran'} active={screen.enabled} onClick={() => screen.toggle()} />
+          <CtrlBtn icon={<MessageSquare size={20} />} label="Discussion" active={chatOpen} onClick={() => setChatOpen(!chatOpen)} />
         </div>
         {/* Groupe TDAH */}
         <div className="flex items-center gap-2 bg-gray-900/50 rounded-2xl p-1">
-          <CtrlBtn icon="☕" label="Pause" active={false} onClick={onPause} />
-          <CtrlBtn icon="⏱️" label="+10 min" active={false} onClick={onExtend} />
+          <CtrlBtn icon={<Coffee size={20} />} label="Pause" active={false} onClick={onPause} />
+          <CtrlBtn icon={<Clock size={20} />} label="+10 min" active={false} onClick={onExtend} />
         </div>
         {/* Quitter */}
-        <CtrlBtn icon="🚪" label="Quitter" danger onClick={onLeave} />
+        <CtrlBtn icon={<PhoneOff size={20} />} label="Quitter" danger onClick={onLeave} />
       </div>
     </>
   );
@@ -565,9 +569,9 @@ export default function LiveSession() {
                 {isFavorite ? '⭐' : '☆'}
               </button>
             </div>
-            <button onClick={toggleFullscreen} title="Plein écran"
+            <button onClick={toggleFullscreen} title="Plein écran" aria-label="Plein écran"
               className="text-white bg-gray-700 hover:bg-gray-600 w-9 h-9 rounded-xl flex items-center justify-center transition-colors">
-              {isFullscreen ? '🗕' : '⛶'}
+              {isFullscreen ? <Minimize size={18} /> : <Maximize size={18} />}
             </button>
           </div>
         </div>
