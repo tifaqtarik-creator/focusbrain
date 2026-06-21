@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '../lib/api';
-import { getSocket } from '../lib/socket';
+import { getSocket, connectSocket } from '../lib/socket';
 import { completeSession, reliability, getFavoriteIds, addFavorite, removeFavorite } from '../lib/bodyDoubling';
 
 // LiveKit imports
@@ -132,6 +132,12 @@ export default function LiveSession() {
   const [partnerTask, setPartnerTask] = useState('');
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Démarrage synchronisé & anticipé
+  const [myReady, setMyReady]           = useState(false);
+  const [partnerReady, setPartnerReady] = useState(false);
+  const [launchCount, setLaunchCount]   = useState<number | null>(null); // overlay 3-2-1
+  const [nowMs, setNowMs]               = useState(() => Date.now());     // pour le compte à rebours vers startTime
+
   // Satisfaction post-session
   const [showFeedback, setShowFeedback]   = useState(false);
   const [feedbackRating,  setFeedbackRating]  = useState(0);
@@ -163,18 +169,33 @@ export default function LiveSession() {
       .catch(() => navigate('/dashboard'));
 
     const socket = getSocket();
+    connectSocket(); // s'assurer que le temps réel est actif (prêt/lancement)
     socket.on('session:break_proposed', () => setBreakProposed(true));
     socket.on('session:break_accepted', () => { setBreakActive(true); });
     socket.on('session:extend_accepted', () => setTimeLeft(t => t + 600));
     socket.on('session:partner_task', ({ task: t }: any) => setPartnerTask(t));
+    socket.on('session:partner_ready', ({ ready }: any) => setPartnerReady(!!ready));
+    socket.on('session:launch', ({ at }: any) => {
+      const remaining = Math.max(1, Math.round((Number(at) - Date.now()) / 1000));
+      setLaunchCount(remaining);
+    });
 
     return () => {
       socket.off('session:break_proposed');
       socket.off('session:break_accepted');
       socket.off('session:extend_accepted');
       socket.off('session:partner_task');
+      socket.off('session:partner_ready');
+      socket.off('session:launch');
     };
   }, [slotId]);
+
+  // Horloge (1 s) pour le compte à rebours vers l'heure prévue
+  useEffect(() => {
+    if (phase !== 'checkin') return;
+    const t = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [phase]);
 
   // ── Timer ─────────────────────────────────────────────────────────────────
   const startTimer = (durationMin: number) => {
@@ -201,6 +222,21 @@ export default function LiveSession() {
     setPhase('live');
     if (slot?.duration) startTimer(slot.duration);
   };
+
+  // Se déclarer prêt / annuler (démarrage anticipé par accord mutuel)
+  const toggleReady = () => {
+    const next = !myReady;
+    setMyReady(next);
+    getSocket().emit(next ? 'session:ready' : 'session:ready_cancel', { slotId });
+  };
+
+  // Overlay 3-2-1 synchronisé puis bascule en LIVE pour les deux
+  useEffect(() => {
+    if (launchCount === null) return;
+    if (launchCount <= 0) { startLive(); setLaunchCount(null); return; }
+    const t = setTimeout(() => setLaunchCount(c => (c === null ? null : c - 1)), 1000);
+    return () => clearTimeout(t);
+  }, [launchCount]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const leave = () => {
     clearInterval(timerRef.current!);
@@ -255,6 +291,25 @@ export default function LiveSession() {
   const mins = String(Math.floor(timeLeft / 60)).padStart(2, '0');
   const secs = String(timeLeft % 60).padStart(2, '0');
   const progress = slot?.duration ? ((slot.duration * 60 - timeLeft) / (slot.duration * 60)) * 100 : 0;
+
+  // Compte à rebours vers l'heure prévue du créneau
+  const startMs = slot?.startTime ? new Date(slot.startTime).getTime() : null;
+  const secToStart = startMs !== null ? Math.round((startMs - nowMs) / 1000) : null;
+  const startCountdown = secToStart !== null && secToStart > 0
+    ? `${String(Math.floor(secToStart / 60)).padStart(2, '0')}:${String(secToStart % 60).padStart(2, '0')}`
+    : null;
+
+  // Overlay de lancement synchronisé (3-2-1) — rendu par-dessus le check-in
+  const launchOverlay = launchCount !== null ? (
+    <div className="fixed inset-0 z-[70] bg-teal-600/95 flex items-center justify-center">
+      <motion.div key={launchCount} initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+        className="text-center text-white">
+        <p className="text-sm font-bold opacity-80 mb-2">Vous êtes prêts tous les deux 🎉</p>
+        <p className="text-8xl font-black tabular-nums">{launchCount > 0 ? launchCount : 'GO'}</p>
+        <p className="text-sm opacity-80 mt-2">Démarrage de la session…</p>
+      </motion.div>
+    </div>
+  ) : null;
 
   // ── Fallback : LiveKit non configuré ──────────────────────────────────────
   if (fallback || phase === 'fallback') return (
@@ -349,16 +404,35 @@ export default function LiveSession() {
           {task && <p className="text-xs text-teal-600 mt-1.5">✓ Partagé avec ton partenaire</p>}
         </div>
 
-        <div className="bg-teal-50 rounded-xl p-4 mb-6 text-sm text-teal-700">
-          <p className="font-bold mb-1">🎥 Session vidéo LiveKit</p>
-          <p className="text-xs opacity-80">Micro et caméra activés au démarrage. Tu peux les couper à tout moment.</p>
+        {/* Démarrage synchronisé & anticipé (accord mutuel) */}
+        <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 mb-3">
+          {startCountdown
+            ? <p className="text-sm text-gray-600 mb-3 text-center">⏳ Créneau prévu dans <strong className="tabular-nums">{startCountdown}</strong> — mais vous pouvez commencer dès que vous êtes <strong>prêts tous les deux</strong>.</p>
+            : <p className="text-sm text-gray-600 mb-3 text-center">✅ C'est l'heure ! Déclarez-vous prêts pour démarrer ensemble.</p>}
+          <div className="flex items-center justify-center gap-2 mb-3 text-xs flex-wrap">
+            <span className={`px-3 py-1 rounded-full font-bold ${myReady ? 'bg-teal-100 text-teal-700' : 'bg-gray-100 text-gray-400'}`}>
+              {myReady ? '✓ Toi : prêt' : 'Toi : pas prêt'}
+            </span>
+            <span className={`px-3 py-1 rounded-full font-bold ${partnerReady ? 'bg-teal-100 text-teal-700' : 'bg-gray-100 text-gray-400'}`}>
+              {partnerReady ? `✓ ${slot?.partner?.name || 'Partenaire'} : prêt` : `${slot?.partner?.name || 'Partenaire'} : en attente…`}
+            </span>
+          </div>
+          <button onClick={toggleReady}
+            className={`w-full font-black py-3.5 rounded-xl transition-colors ${myReady ? 'bg-gray-200 text-gray-600 hover:bg-gray-300' : 'bg-teal-500 text-white hover:bg-teal-600'}`}>
+            {myReady ? '✕ Annuler' : '✋ Je suis prêt(e)'}
+          </button>
+          {myReady && !partnerReady && (
+            <p className="text-xs text-gray-400 text-center mt-2">En attente que {slot?.partner?.name || 'ton partenaire'} soit prêt…</p>
+          )}
         </div>
 
+        {/* Démarrage immédiat (sans attendre le partenaire) */}
         <button onClick={startLive}
-          className="w-full bg-teal-500 text-white font-black py-4 rounded-xl hover:bg-teal-600 transition-colors text-lg">
-          🚀 Démarrer la session
+          className="w-full border-2 border-gray-200 text-gray-600 font-bold py-3 rounded-xl hover:bg-gray-50 transition-colors text-sm">
+          🚀 Démarrer maintenant (sans attendre)
         </button>
       </motion.div>
+      {launchOverlay}
     </div>
   );
 

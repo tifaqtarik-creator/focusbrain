@@ -25,6 +25,9 @@ interface FocusParticipant {
 // roomId → (socketId → participant)
 const focusRooms = new Map<string, Map<string, FocusParticipant>>();
 
+// Démarrage synchronisé : slotId → set des userId déclarés « prêts »
+const readyBySlot = new Map<string, Set<string>>();
+
 export function registerSocketHandlers(io: Server) {
   io.use((socket, next) => {
     const token = socket.handshake.auth.token;
@@ -121,6 +124,52 @@ export function registerSocketHandlers(io: Server) {
       io.to(data.sessionId).emit('session:extend_accepted');
     });
 
+    // ── Démarrage synchronisé & anticipé d'un créneau confirmé ──
+    // L'utilisateur se déclare prêt ; quand les DEUX le sont → top de départ commun.
+    socket.on('session:ready', async (data: { slotId: string }) => {
+      try {
+        const slot = await prisma.slot.findUnique({
+          where: { id: data.slotId },
+          select: { creatorId: true, partnerId: true, startedAt: true },
+        });
+        if (!slot) return;
+        const isParticipant = slot.creatorId === userId || slot.partnerId === userId;
+        if (!isParticipant) return;
+
+        let set = readyBySlot.get(data.slotId);
+        if (!set) { set = new Set(); readyBySlot.set(data.slotId, set); }
+        set.add(userId);
+
+        const otherId = slot.creatorId === userId ? slot.partnerId : slot.creatorId;
+        if (otherId) io.to(`user:${otherId}`).emit('session:partner_ready', { userId, ready: true });
+
+        // Les deux participants sont prêts → lancement synchronisé (3-2-1)
+        if (slot.partnerId && set.has(slot.creatorId) && set.has(slot.partnerId)) {
+          const at = Date.now() + 3000; // top dans 3 s, horodatage serveur partagé
+          io.to(`user:${slot.creatorId}`).emit('session:launch', { slotId: data.slotId, at });
+          io.to(`user:${slot.partnerId}`).emit('session:launch', { slotId: data.slotId, at });
+          if (!slot.startedAt) {
+            await prisma.slot.update({ where: { id: data.slotId }, data: { startedAt: new Date() } });
+          }
+          readyBySlot.delete(data.slotId);
+        }
+      } catch { /* ignore */ }
+    });
+
+    // L'utilisateur annule son état « prêt »
+    socket.on('session:ready_cancel', async (data: { slotId: string }) => {
+      readyBySlot.get(data.slotId)?.delete(userId);
+      try {
+        const slot = await prisma.slot.findUnique({
+          where: { id: data.slotId },
+          select: { creatorId: true, partnerId: true },
+        });
+        if (!slot) return;
+        const otherId = slot.creatorId === userId ? slot.partnerId : slot.creatorId;
+        if (otherId) io.to(`user:${otherId}`).emit('session:partner_ready', { userId, ready: false });
+      } catch { /* ignore */ }
+    });
+
     // ── Salles de focus (Body Doubling — présence temps réel) ──
     socket.on('focus:join', async (data: { roomId: string; goal?: string; duration?: number }) => {
       const u = await prisma.user.findUnique({ where: { id: userId }, select: { name: true, avatar: true } });
@@ -162,6 +211,10 @@ export function registerSocketHandlers(io: Server) {
     socket.on('disconnect', () => {
       const idx = waitingQueue.findIndex(u => u.userId === userId);
       if (idx !== -1) waitingQueue.splice(idx, 1);
+      // Nettoyer l'état « prêt » des démarrages synchronisés
+      for (const [slotId, set] of readyBySlot) {
+        if (set.delete(userId) && set.size === 0) readyBySlot.delete(slotId);
+      }
       // Nettoyer les salles de focus
       let changed = false;
       for (const [roomId, room] of focusRooms) {
