@@ -1,10 +1,10 @@
-import { useEffect, useState, useRef, FormEvent, ChangeEvent, ReactNode } from 'react';
+import { useEffect, useState, useRef, FormEvent, ChangeEvent, MouseEvent as ReactMouseEvent, ReactNode } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Mic, MicOff, Video, VideoOff, MonitorUp, MessageSquare,
   Coffee, Clock, PhoneOff, Maximize, Minimize, Send, Paperclip,
-  LayoutGrid, Maximize2, Minimize2,
+  LayoutGrid, Maximize2, Minimize2, Play,
 } from 'lucide-react';
 import api from '../lib/api';
 import { useAppStore } from '../stores/useStore';
@@ -72,7 +72,10 @@ function FbChat({ onClose, slotId }: { onClose: () => void; slotId?: string }) {
   const avatarOf = (p: any) => { try { return p?.metadata ? (JSON.parse(p.metadata).avatar || null) : null; } catch { return null; } };
 
   const fileRef = useRef<HTMLInputElement>(null);
+  const taRef = useRef<HTMLTextAreaElement>(null);
   const [uploading, setUploading] = useState(false);
+  const autoGrow = () => { const el = taRef.current; if (el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 120) + 'px'; } };
+  const resetTa = () => { if (taRef.current) taRef.current.style.height = 'auto'; };
 
   // Les messages temps réel transportent { t: texte, a: pièces jointes } (JSON)
   const parseLive = (raw: string): { text: string; attachments: any[] } => {
@@ -88,7 +91,7 @@ function FbChat({ onClose, slotId }: { onClose: () => void; slotId?: string }) {
     const t = text.trim();
     if (!t) return;
     sendMessage(t, []);
-    setText('');
+    setText(''); resetTa();
   };
   const onFile = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -123,16 +126,20 @@ function FbChat({ onClose, slotId }: { onClose: () => void; slotId?: string }) {
         })}
         <div ref={endRef} />
       </div>
-      <form onSubmit={submit} className="p-2 border-t border-white/10 flex gap-2 shrink-0 items-center">
+      <form onSubmit={submit} className="p-2 border-t border-white/10 flex gap-2 shrink-0 items-end">
         <input ref={fileRef} type="file" onChange={onFile} className="hidden"
           accept="image/*,.pdf,.doc,.docx,.txt,.zip" />
         <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading} aria-label="Joindre un fichier"
-          className="text-gray-300 hover:text-white p-2 rounded-xl hover:bg-white/10 shrink-0 disabled:opacity-50">
+          className="text-gray-300 hover:text-white p-2 rounded-xl hover:bg-white/10 shrink-0 disabled:opacity-50 self-end">
           {uploading ? <span className="text-xs">⏳</span> : <Paperclip size={18} />}
         </button>
-        <input value={text} onChange={e => setText(e.target.value)} placeholder="Écris un message…"
-          className="flex-1 min-w-0 rounded-xl px-3 py-2 text-sm text-white outline-none border border-white/15 focus:border-teal-400" style={{ background: '#2a3142' }} />
-        <button type="submit" aria-label="Envoyer" className="bg-teal-500 hover:bg-teal-600 text-white px-3.5 py-2 rounded-xl shrink-0 flex items-center justify-center"><Send size={18} /></button>
+        <textarea ref={taRef} value={text} rows={1}
+          onChange={e => { setText(e.target.value); autoGrow(); }}
+          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(e as any); } }}
+          placeholder="Écris un message… (Maj+Entrée = nouvelle ligne)"
+          className="flex-1 min-w-0 rounded-xl px-3 py-2 text-sm text-white outline-none border border-white/15 focus:border-teal-400 resize-none leading-snug overflow-y-auto"
+          style={{ background: '#2a3142', maxHeight: 120 }} />
+        <button type="submit" aria-label="Envoyer" className="bg-teal-500 hover:bg-teal-600 text-white px-3.5 py-2 rounded-xl shrink-0 flex items-center justify-center self-end"><Send size={18} /></button>
       </form>
     </div>
   );
@@ -211,9 +218,9 @@ function CtrlBtn({ icon, label, active = true, danger = false, onClick, badge }:
 // Corps de la salle (dans le contexte LiveKit) : grille vidéo + chat + barre de contrôle unique FR
 function RoomBody(props: {
   partnerName?: string; slotId?: string; chatOpen: boolean; setChatOpen: (v: boolean) => void;
-  onPause: () => void; onExtend: () => void; onLeave: () => void;
+  paused?: boolean; onPause: () => void; onExtend: () => void; onLeave: () => void;
 }) {
-  const { partnerName, slotId, chatOpen, setChatOpen, onPause, onExtend, onLeave } = props;
+  const { partnerName, slotId, chatOpen, setChatOpen, paused, onPause, onExtend, onLeave } = props;
   const mic    = useTrackToggle({ source: Track.Source.Microphone });
   const cam    = useTrackToggle({ source: Track.Source.Camera });
   const screen = useTrackToggle({ source: Track.Source.ScreenShare });
@@ -273,6 +280,21 @@ function RoomBody(props: {
     if (target) setFocusedKey(keyOf(target));
   };
 
+  // ── Panneau de discussion redimensionnable (glissement horizontal) ──
+  const [chatWidth, setChatWidth] = useState<number>(() => {
+    const v = parseInt(localStorage.getItem('fb_chat_w') || '288', 10);
+    return isNaN(v) ? 288 : Math.min(520, Math.max(260, v));
+  });
+  useEffect(() => { localStorage.setItem('fb_chat_w', String(chatWidth)); }, [chatWidth]);
+  const startResize = (e: ReactMouseEvent) => {
+    e.preventDefault();
+    const startX = e.clientX, startW = chatWidth;
+    const onMove = (ev: globalThis.MouseEvent) => setChatWidth(Math.min(520, Math.max(260, startW + (startX - ev.clientX))));
+    const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  };
+
   return (
     <>
       {/* Toast nouveau message (clic → ouvrir le chat) */}
@@ -322,8 +344,12 @@ function RoomBody(props: {
           <WaitingForPartner name={partnerName} />
         </div>
         {chatOpen && (
-          <div className="w-72 shrink-0 border-l border-gray-700">
-            <FbChat onClose={() => setChatOpen(false)} slotId={slotId} />
+          <div className="shrink-0 flex" style={{ width: chatWidth }}>
+            <div onMouseDown={startResize} title="Glisser pour redimensionner"
+              className="w-1.5 cursor-col-resize bg-gray-700 hover:bg-teal-500 active:bg-teal-500 shrink-0 transition-colors" />
+            <div className="flex-1 min-w-0">
+              <FbChat onClose={() => setChatOpen(false)} slotId={slotId} />
+            </div>
           </div>
         )}
       </div>
@@ -340,7 +366,7 @@ function RoomBody(props: {
         </div>
         {/* Groupe TDAH */}
         <div className="flex items-center gap-2 bg-gray-900/50 rounded-2xl p-1">
-          <CtrlBtn icon={<Coffee size={20} />} label="Pause" active={false} onClick={onPause} />
+          <CtrlBtn icon={paused ? <Play size={20} /> : <Coffee size={20} />} label={paused ? 'Reprendre' : 'Pause'} active={!!paused} onClick={onPause} />
           <CtrlBtn icon={<Clock size={20} />} label="+10 min" active={false} onClick={onExtend} />
         </div>
         {/* Quitter */}
@@ -369,8 +395,9 @@ export default function LiveSession() {
   const [_taskSet, setTaskSet] = useState(false);
 
   const [timeLeft, setTimeLeft] = useState(0);
-  const [breakProposed, setBreakProposed] = useState(false);
-  const [breakActive, setBreakActive] = useState(false);
+  const [paused, setPaused] = useState(false);
+  const pausedRef = useRef(false);
+  useEffect(() => { pausedRef.current = paused; }, [paused]);
   const [partnerTask, setPartnerTask] = useState('');
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -412,9 +439,9 @@ export default function LiveSession() {
 
     const socket = getSocket();
     connectSocket(); // s'assurer que le temps réel est actif (prêt/lancement)
-    socket.on('session:break_proposed', () => setBreakProposed(true));
-    socket.on('session:break_accepted', () => { setBreakActive(true); });
-    socket.on('session:extend_accepted', () => setTimeLeft(t => t + 600));
+    socket.on('session:paused',   () => setPaused(true));
+    socket.on('session:resumed',  () => setPaused(false));
+    socket.on('session:extended', () => setTimeLeft(t => t + 600));
     socket.on('session:partner_task', ({ task: t }: any) => setPartnerTask(t));
     socket.on('session:partner_ready', ({ ready }: any) => setPartnerReady(!!ready));
     socket.on('session:launch', ({ at }: any) => {
@@ -423,9 +450,9 @@ export default function LiveSession() {
     });
 
     return () => {
-      socket.off('session:break_proposed');
-      socket.off('session:break_accepted');
-      socket.off('session:extend_accepted');
+      socket.off('session:paused');
+      socket.off('session:resumed');
+      socket.off('session:extended');
       socket.off('session:partner_task');
       socket.off('session:partner_ready');
       socket.off('session:launch');
@@ -443,6 +470,7 @@ export default function LiveSession() {
   const startTimer = (durationMin: number) => {
     setTimeLeft(durationMin * 60);
     timerRef.current = setInterval(() => {
+      if (pausedRef.current) return;            // en pause → on ne décompte pas
       setTimeLeft(prev => {
         if (prev <= 1) {
           clearInterval(timerRef.current!);
@@ -752,14 +780,12 @@ export default function LiveSession() {
           }}
           className="flex-1 min-h-0 flex flex-col"
         >
-          {/* Bandeau : pause proposée par le partenaire */}
+          {/* Bandeau : session en pause */}
           <AnimatePresence>
-            {breakProposed && !breakActive && (
+            {paused && (
               <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
                 className="shrink-0 bg-amber-500 text-white text-xs font-bold px-4 py-2 flex items-center justify-center gap-2">
-                ☕ {slot?.partner?.name || 'Ton partenaire'} propose une pause
-                <button onClick={() => { getSocket().emit('session:break_accept', { slotId }); setBreakActive(true); }}
-                  className="bg-white text-amber-600 px-2 py-0.5 rounded-lg">Accepter</button>
+                ⏸ Session en pause — le minuteur est arrêté pour vous deux
               </motion.div>
             )}
           </AnimatePresence>
@@ -769,8 +795,9 @@ export default function LiveSession() {
             slotId={slotId}
             chatOpen={chatOpen}
             setChatOpen={setChatOpen}
-            onPause={() => getSocket().emit('session:break_propose', { slotId })}
-            onExtend={() => getSocket().emit('session:extend_request', { slotId })}
+            paused={paused}
+            onPause={() => { const next = !paused; setPaused(next); getSocket().emit(next ? 'session:pause' : 'session:resume', { slotId }); }}
+            onExtend={() => { setTimeLeft(t => t + 600); getSocket().emit('session:extend', { slotId }); }}
             onLeave={leave}
           />
           <RoomAudioRenderer />

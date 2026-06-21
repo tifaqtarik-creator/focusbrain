@@ -108,21 +108,17 @@ export function registerSocketHandlers(io: Server) {
       socket.to(data.sessionId).emit('session:partner_mood', { mood: data.mood });
     });
 
-    socket.on('session:break_propose', (data: { sessionId: string }) => {
-      socket.to(data.sessionId).emit('session:break_proposed');
-    });
-
-    socket.on('session:break_accept', (data: { sessionId: string }) => {
-      socket.to(data.sessionId).emit('session:break_accepted');
-    });
-
-    socket.on('session:extend_request', (data: { sessionId: string }) => {
-      socket.to(data.sessionId).emit('session:extend_request');
-    });
-
-    socket.on('session:extend_accept', (data: { sessionId: string }) => {
-      io.to(data.sessionId).emit('session:extend_accepted');
-    });
+    // ── Pause / +10 min / partage de tâche — routés vers le PARTENAIRE de la session ──
+    const partnerOf = async (slotId: string): Promise<string | null> => {
+      const s = await prisma.slot.findUnique({ where: { id: slotId }, select: { creatorId: true, partnerId: true } });
+      if (!s) return null;
+      if (s.creatorId !== userId && s.partnerId !== userId) return null;
+      return s.creatorId === userId ? s.partnerId : s.creatorId;
+    };
+    socket.on('session:pause',      async (d: { slotId: string }) => { const o = await partnerOf(d.slotId); if (o) io.to(`user:${o}`).emit('session:paused'); });
+    socket.on('session:resume',     async (d: { slotId: string }) => { const o = await partnerOf(d.slotId); if (o) io.to(`user:${o}`).emit('session:resumed'); });
+    socket.on('session:extend',     async (d: { slotId: string }) => { const o = await partnerOf(d.slotId); if (o) io.to(`user:${o}`).emit('session:extended'); });
+    socket.on('session:share_task', async (d: { slotId: string; task: string }) => { const o = await partnerOf(d.slotId); if (o) io.to(`user:${o}`).emit('session:partner_task', { task: d.task }); });
 
     // ── Démarrage synchronisé & anticipé d'un créneau confirmé ──
     // L'utilisateur se déclare prêt ; quand les DEUX le sont → top de départ commun.
