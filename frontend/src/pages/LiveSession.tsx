@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, FormEvent } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '../lib/api';
@@ -10,13 +10,66 @@ import {
   LiveKitRoom,
   RoomAudioRenderer,
   VideoTrack,
-  Chat,
+  useChat,
   useTracks,
   useRemoteParticipants,
   useTrackToggle,
 } from '@livekit/components-react';
 import { Track } from 'livekit-client';
 import '@livekit/components-styles';
+
+// Chat maison (design FocusBrain) — bulles, expéditeur, saisie propre
+function FbChat({ onClose }: { onClose: () => void }) {
+  const { chatMessages, send } = useChat();
+  const [text, setText] = useState('');
+  const endRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatMessages.length]);
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    const t = text.trim();
+    if (!t) return;
+    send(t); setText('');
+  };
+  const nameOf = (p: any) => {
+    try { const m = p?.metadata ? JSON.parse(p.metadata) : {}; return m.name || p?.name || p?.identity || 'Participant'; }
+    catch { return p?.name || p?.identity || 'Participant'; }
+  };
+  return (
+    <div className="flex flex-col h-full" style={{ background: '#1f2430' }}>
+      <div className="px-3 py-2.5 flex items-center justify-between text-white text-sm font-black border-b border-white/10 shrink-0">
+        💬 Discussion
+        <button onClick={onClose} className="text-gray-400 hover:text-white text-lg leading-none">✕</button>
+      </div>
+      <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2">
+        {chatMessages.length === 0 && (
+          <p className="text-center text-xs text-gray-500 mt-6">Aucun message pour l'instant.<br />Dis bonjour 👋</p>
+        )}
+        {chatMessages.map((m, i) => {
+          const mine = (m.from as any)?.isLocal;
+          return (
+            <div key={m.id || i} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+              <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm break-words ${mine ? 'bg-teal-500 text-white rounded-br-sm' : 'bg-gray-700 text-gray-100 rounded-bl-sm'}`}>
+                {!mine && <p className="text-[10px] font-bold opacity-70 mb-0.5">{nameOf(m.from)}</p>}
+                {m.message}
+              </div>
+            </div>
+          );
+        })}
+        <div ref={endRef} />
+      </div>
+      <form onSubmit={submit} className="p-2 border-t border-white/10 flex gap-2 shrink-0">
+        <input
+          value={text}
+          onChange={e => setText(e.target.value)}
+          placeholder="Écris un message…"
+          className="flex-1 min-w-0 rounded-xl px-3 py-2 text-sm text-white outline-none border border-white/15 focus:border-teal-400"
+          style={{ background: '#2a3142' }}
+        />
+        <button type="submit" className="bg-teal-500 hover:bg-teal-600 text-white font-black px-3.5 rounded-xl shrink-0">➤</button>
+      </form>
+    </div>
+  );
+}
 
 // Vignette personnalisée : vidéo si caméra active, sinon photo + nom du participant
 function FbTile({ trackRef }: { trackRef: any }) {
@@ -96,16 +149,6 @@ function RoomBody(props: {
     { onlySubscribed: false },
   );
 
-  // Placeholder du chat en français (le composant LiveKit est en anglais par défaut)
-  useEffect(() => {
-    if (!chatOpen) return;
-    const t = setTimeout(() => {
-      const inp = document.querySelector('.fb-chat input') as HTMLInputElement | null;
-      if (inp) inp.placeholder = 'Écris un message…';
-    }, 250);
-    return () => clearTimeout(t);
-  }, [chatOpen]);
-
   return (
     <>
       {/* Zone vidéo + chat latéral */}
@@ -119,12 +162,8 @@ function RoomBody(props: {
           <WaitingForPartner name={partnerName} />
         </div>
         {chatOpen && (
-          <div className="fb-chat w-72 shrink-0 border-l border-gray-700 flex flex-col">
-            <div className="px-3 py-2 flex items-center justify-between text-white text-sm font-black border-b border-gray-700">
-              💬 Discussion
-              <button onClick={() => setChatOpen(false)} className="text-gray-400 hover:text-white">✕</button>
-            </div>
-            <div className="flex-1 min-h-0"><Chat /></div>
+          <div className="w-72 shrink-0 border-l border-gray-700">
+            <FbChat onClose={() => setChatOpen(false)} />
           </div>
         )}
       </div>
