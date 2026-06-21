@@ -306,6 +306,13 @@ export default function LiveSession() {
     return () => document.removeEventListener('fullscreenchange', onFs);
   }, []);
 
+  // Plein écran automatique à l'entrée en session (suite au clic de démarrage)
+  useEffect(() => {
+    if (phase === 'live' && !document.fullscreenElement) {
+      liveRef.current?.requestFullscreen?.().catch(() => { /* l'utilisateur pourra cliquer ⛶ */ });
+    }
+  }, [phase]);
+
   const submitFeedback = async () => {
     if (!slotId || feedbackLoading) return;
     setFeedbackLoading(true);
