@@ -5,7 +5,7 @@ import timeGridPlugin from '@fullcalendar/timegrid';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Eye, Pencil, Trash2 } from 'lucide-react';
+import { Eye, Pencil, Trash2, Plus } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
 import { useAppStore } from '../stores/useStore';
@@ -87,6 +87,24 @@ export default function Dashboard() {
   const [recFreq,     setRecFreq]     = useState<'DAILY' | 'WEEKLY'>('WEEKLY');
   const [recDays,     setRecDays]     = useState<number[]>([]);
   const [recCount,    setRecCount]    = useState(4);
+  // Date / heure précises de démarrage (édit. dans la modal de création)
+  const [createDate, setCreateDate] = useState(''); // YYYY-MM-DD
+  const [createTime, setCreateTime] = useState(''); // HH:mm
+  useEffect(() => {
+    if (createModal?.start) {
+      const d = createModal.start;
+      const p = (n: number) => String(n).padStart(2, '0');
+      setCreateDate(`${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`);
+      setCreateTime(`${p(d.getHours())}:${p(d.getMinutes())}`);
+    }
+  }, [createModal]);
+  const createStart = () => new Date(`${createDate}T${createTime || '00:00'}`);
+  const openNewSession = () => {
+    const d = new Date();
+    d.setMinutes(Math.ceil((d.getMinutes() + 1) / 15) * 15, 0, 0); // arrondi au quart d'heure suivant
+    setCreateModal({ start: d });
+    setDuration(25);
+  };
   // Feedback de fin de session
   const [feedbackSlot, setFeedbackSlot] = useState<any | null>(null);
   // États pour l'édition
@@ -506,9 +524,15 @@ export default function Dashboard() {
               ))}
             </div>
           </div>
-          <p className="text-xs text-gray-400 bg-gray-50 rounded-xl px-3 py-2">
-            {sc.clickToCreate}
-          </p>
+          <div className="flex items-center gap-3">
+            <p className="text-xs text-gray-400 bg-gray-50 rounded-xl px-3 py-2 hidden md:block">
+              {sc.clickToCreate}
+            </p>
+            <button onClick={openNewSession}
+              className="flex items-center gap-1.5 bg-teal-500 hover:bg-teal-600 text-white font-black text-sm px-4 py-2.5 rounded-xl transition-colors shrink-0">
+              <Plus size={16} /> Nouvelle session
+            </button>
+          </div>
         </div>
 
         <div className="flex-1 overflow-auto p-4">
@@ -589,11 +613,23 @@ export default function Dashboard() {
               {slotType === 'INSTANT' ? (
                 <p className="text-sm text-teal-700 bg-teal-50 rounded-xl px-3 py-2 mb-5">{sc.instantHint}</p>
               ) : (
-                <p className="text-sm text-gray-500 mb-5">
-                  📅 {createModal.start.toLocaleDateString('fr', { weekday: 'long', day: 'numeric', month: 'long' })}
-                  {' · '}
-                  {createModal.start.toLocaleTimeString('fr', { hour: '2-digit', minute: '2-digit' })}
-                </p>
+                <div className="mb-5">
+                  <p className="text-sm font-bold text-gray-700 mb-2">📅 {slotType === 'RECURRING' ? '1ʳᵉ session — date et heure' : 'Date et heure de démarrage'}</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input type="date" value={createDate} onChange={e => setCreateDate(e.target.value)}
+                      className="w-full border-2 border-gray-200 focus:border-teal-400 rounded-xl px-3 py-2.5 text-sm outline-none" />
+                    <input type="time" step={60} value={createTime} onChange={e => setCreateTime(e.target.value)}
+                      className="w-full border-2 border-gray-200 focus:border-teal-400 rounded-xl px-3 py-2.5 text-sm outline-none" />
+                  </div>
+                  {createDate && createTime && (
+                    <p className="text-xs text-gray-500 mt-1.5 capitalize">
+                      → {createStart().toLocaleDateString('fr', { weekday: 'long', day: 'numeric', month: 'long' })} à {createStart().toLocaleTimeString('fr', { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  )}
+                  {createDate && createTime && createStart().getTime() < Date.now() && (
+                    <p className="text-xs text-amber-600 mt-1">⚠️ Cette date est déjà passée — choisis un horaire à venir.</p>
+                  )}
+                </div>
               )}
 
               {/* Options de récurrence */}
@@ -711,7 +747,7 @@ export default function Dashboard() {
               <button
                 onClick={() => createSlot.mutate({
                   type: slotType,
-                  ...(slotType !== 'INSTANT' && { startTime: createModal.start.toISOString() }),
+                  ...(slotType !== 'INSTANT' && { startTime: createStart().toISOString() }),
                   duration,
                   tasks: [...taskList, creatorTask.trim()].filter(Boolean),
                   description: description.trim() || undefined,
@@ -722,7 +758,7 @@ export default function Dashboard() {
                     recurrence: { freq: recFreq, days: recFreq === 'WEEKLY' ? recDays : undefined, count: recCount },
                   }),
                 })}
-                disabled={createSlot.isPending}
+                disabled={createSlot.isPending || (slotType !== 'INSTANT' && (!createDate || !createTime || createStart().getTime() < Date.now()))}
                 className="w-full bg-teal-500 text-white font-black py-4 rounded-xl hover:bg-teal-600 transition-colors disabled:opacity-50 text-base"
               >
                 {createSlot.isPending ? sc.creating
