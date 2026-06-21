@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
+import { randomUUID } from 'crypto';
 import { AccessToken } from 'livekit-server-sdk';
 
 const router = Router();
@@ -33,23 +34,33 @@ async function generateLiveKitToken(userId: string, userName: string, roomName: 
 // ── GET /api/slots — Tous les créneaux disponibles ───────────────────────────
 router.get('/', async (req: any, res) => {
   try {
-    const slots = await prisma.slot.findMany({
-      where: {
-        startTime: { gte: new Date() },
-        status: { in: ['OPEN', 'PENDING', 'CONFIRMED'] },
-      },
-      include: {
-        creator: { select: { id: true, name: true, tdahType: true, avatar: true, sessionsCompleted: true, sessionsNoShow: true } },
-        partner: { select: { id: true, name: true, tdahType: true, avatar: true, sessionsCompleted: true, sessionsNoShow: true } },
-        requests: {
-          where: { userId: req.userId },
-          select: { status: true },
+    const [me, slots] = await Promise.all([
+      prisma.user.findUnique({ where: { id: req.userId }, select: { preferredLanguages: true } }),
+      prisma.slot.findMany({
+        where: {
+          startTime: { gte: new Date() },
+          status: { in: ['OPEN', 'PENDING', 'CONFIRMED'] },
         },
-        _count: { select: { requests: true } },
-      },
-      orderBy: { startTime: 'asc' },
-    });
-    res.json(slots);
+        include: {
+          creator: { select: { id: true, name: true, tdahType: true, avatar: true, sessionsCompleted: true, sessionsNoShow: true, preferredLanguages: true } },
+          partner: { select: { id: true, name: true, tdahType: true, avatar: true, sessionsCompleted: true, sessionsNoShow: true } },
+          requests: {
+            where: { userId: req.userId },
+            select: { status: true },
+          },
+          _count: { select: { requests: true } },
+        },
+        orderBy: { startTime: 'asc' },
+      }),
+    ]);
+
+    // Appariement par langue : marquer les créneaux partageant une langue préférée
+    const myLangs = new Set(me?.preferredLanguages || []);
+    const withMatch = slots.map((s: any) => ({
+      ...s,
+      languageMatch: myLangs.size > 0 && (s.creator?.preferredLanguages || []).some((l: string) => myLangs.has(l)),
+    }));
+    res.json(withMatch);
   } catch (e) {
     res.status(500).json({ error: 'Erreur serveur' });
   }
@@ -104,60 +115,119 @@ router.get('/pending', async (req: any, res) => {
   }
 });
 
-// ── POST /api/slots — Créer un créneau ───────────────────────────────────────
+// Génère la liste des dates d'occurrences pour une session récurrente (max 12)
+function buildRecurrenceDates(start: Date, rule: { freq: string; days?: number[]; count: number }): Date[] {
+  const count = Math.min(Math.max(rule.count, 1), 12);
+  const dates: Date[] = [];
+  if (rule.freq === 'DAILY') {
+    for (let i = 0; i < count; i++) {
+      const d = new Date(start); d.setDate(start.getDate() + i); dates.push(d);
+    }
+  } else { // WEEKLY
+    const days = (rule.days && rule.days.length) ? rule.days : [start.getDay()];
+    const cursor = new Date(start);
+    let guard = 0;
+    while (dates.length < count && guard < 366) {
+      if (days.includes(cursor.getDay())) {
+        const d = new Date(cursor);
+        d.setHours(start.getHours(), start.getMinutes(), 0, 0);
+        if (d.getTime() >= start.getTime()) dates.push(d);
+      }
+      cursor.setDate(cursor.getDate() + 1);
+      guard++;
+    }
+  }
+  return dates;
+}
+
+// ── POST /api/slots — Créer un créneau (instantané / planifié / récurrent) ────
 router.post('/', async (req: any, res) => {
   const schema = z.object({
-    startTime:   z.string().datetime(),
+    startTime:   z.string().datetime().optional(),
     duration:    z.number().refine(d => [15, 25, 50, 75].includes(d)),
+    type:        z.enum(['INSTANT', 'SCHEDULED', 'RECURRING']).optional(),
+    description: z.string().max(500).optional(),
     creatorTask: z.string().max(200).optional(),
     tasks:       z.array(z.string().max(200)).max(8).optional(),
     category:    z.string().max(40).optional(),
     ambiance:    z.string().max(40).optional(),
     energy:      z.string().max(20).optional(),
+    recurrence:  z.object({
+      freq:  z.enum(['DAILY', 'WEEKLY']),
+      days:  z.array(z.number().int().min(0).max(6)).max(7).optional(),
+      count: z.number().int().min(1).max(12),
+    }).optional(),
   });
 
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Données invalides' });
 
-  const { startTime, duration } = parsed.data;
+  const type = parsed.data.type || 'SCHEDULED';
+  const duration = parsed.data.duration;
+  // INSTANT : démarrage immédiat ; sinon startTime requis
+  const baseStart = type === 'INSTANT'
+    ? new Date()
+    : (parsed.data.startTime ? new Date(parsed.data.startTime) : null);
+  if (!baseStart) return res.status(400).json({ error: 'Date/heure requise' });
+
   const tasks = (parsed.data.tasks || (parsed.data.creatorTask ? [parsed.data.creatorTask] : []))
     .map(t => t.trim()).filter(Boolean).slice(0, 8);
+  const description = parsed.data.description?.trim() || null;
+  const common = {
+    creatorId: req.userId,
+    duration,
+    creatorTask: tasks[0] || null,
+    creatorTasks: tasks,
+    description,
+    category: parsed.data.category || null,
+    ambiance: parsed.data.ambiance || null,
+    energy: parsed.data.energy || null,
+  };
 
+  const io = req.app.get('io');
+
+  // ── Session récurrente : créer une série d'occurrences ──
+  if (type === 'RECURRING' && parsed.data.recurrence) {
+    const seriesId = randomUUID();
+    const dates = buildRecurrenceDates(baseStart, parsed.data.recurrence);
+    const rule = JSON.stringify(parsed.data.recurrence);
+    await prisma.slot.createMany({
+      data: dates.map(d => ({
+        ...common, startTime: d, status: 'OPEN',
+        type: 'RECURRING', recurrenceRule: rule, seriesId,
+      })),
+    });
+    const created = await prisma.slot.findMany({
+      where: { seriesId },
+      include: { creator: { select: { id: true, name: true, tdahType: true, avatar: true } } },
+      orderBy: { startTime: 'asc' },
+    });
+    if (io) created.forEach(s => io.emit('slot:created', s));
+    return res.status(201).json({ series: true, count: created.length, slots: created });
+  }
+
+  // ── Session unique (instantanée ou planifiée) ──
   // Vérifier chevauchement
   const existing = await prisma.slot.findFirst({
     where: {
       creatorId: req.userId,
       status: { not: 'CANCELLED' },
       startTime: {
-        gte: new Date(new Date(startTime).getTime() - duration * 60000),
-        lte: new Date(new Date(startTime).getTime() + duration * 60000),
+        gte: new Date(baseStart.getTime() - duration * 60000),
+        lte: new Date(baseStart.getTime() + duration * 60000),
       },
     },
   });
-
   if (existing) return res.status(400).json({ error: 'Tu as déjà un créneau à cette heure' });
 
   const slot = await prisma.slot.create({
-    data: {
-      creatorId: req.userId,
-      startTime: new Date(startTime),
-      duration,
-      status: 'OPEN',
-      creatorTask: tasks[0] || null,
-      creatorTasks: tasks,
-      category: parsed.data.category || null,
-      ambiance: parsed.data.ambiance || null,
-      energy: parsed.data.energy || null,
-    },
+    data: { ...common, startTime: baseStart, status: 'OPEN', type },
     include: {
       creator: { select: { id: true, name: true, tdahType: true, avatar: true } },
     },
   });
 
-  // Notifier tous les utilisateurs connectés via socket
-  const io = req.app.get('io');
   if (io) io.emit('slot:created', slot);
-
   res.status(201).json(slot);
 });
 
@@ -173,6 +243,7 @@ router.patch('/:id', async (req: any, res) => {
     startTime:   z.string().datetime().optional(),
     duration:    z.number().refine(d => [15, 25, 50, 75].includes(d)).optional(),
     creatorTask: z.string().max(200).nullable().optional(),
+    description: z.string().max(500).nullable().optional(),
   });
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Données invalides' });
@@ -183,6 +254,7 @@ router.patch('/:id', async (req: any, res) => {
       ...(parsed.data.startTime   && { startTime: new Date(parsed.data.startTime) }),
       ...(parsed.data.duration    && { duration: parsed.data.duration }),
       ...(parsed.data.creatorTask !== undefined && { creatorTask: parsed.data.creatorTask }),
+      ...(parsed.data.description !== undefined && { description: parsed.data.description }),
     },
     include: { creator: { select: { id: true, name: true, avatar: true } } },
   });
@@ -510,6 +582,65 @@ router.get('/kpis', async (req: any, res) => {
     noShowRate: denom ? Math.round((noShow / denom) * 100) : 0,
     totals: { confirmed, started, completed, noShow },
     me: { completed: myDone, noShow: myNoShow },
+  });
+});
+
+// ── GET /api/slots/stats — Tableau de bord complet (KPI hiérarchisés) ────────
+router.get('/stats', async (req: any, res) => {
+  const now = new Date();
+  const startOfWeek = new Date(now); const dow = (now.getDay() + 6) % 7; // lundi = 0
+  startOfWeek.setDate(now.getDate() - dow); startOfWeek.setHours(0, 0, 0, 0);
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const dayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+  const [
+    sessionsDone, sessionsUpcoming, sessionsActive, sessionsCancelled,
+    myReviews, matchConfirmed, matchRequested,
+    activeUsers, completedThisWeek, completedThisMonth, me,
+  ] = await Promise.all([
+    // Sessions (plateforme)
+    prisma.slot.count({ where: { completedAt: { not: null } } }),
+    prisma.slot.count({ where: { status: { in: ['OPEN', 'PENDING', 'CONFIRMED'] }, startTime: { gte: now } } }),
+    prisma.slot.count({ where: { startedAt: { not: null }, completedAt: null } }),
+    prisma.slot.count({ where: { status: 'CANCELLED' } }),
+    // Utilisateur : avis reçus = feedbacks laissés par les partenaires sur les sessions où je suis créateur/partenaire
+    prisma.slotFeedback.findMany({
+      where: { slot: { OR: [{ creatorId: req.userId }, { partnerId: req.userId }] }, userId: { not: req.userId } },
+      select: { rating: true },
+    }),
+    prisma.slot.count({ where: { creatorId: req.userId, status: 'CONFIRMED' } }),
+    prisma.slotRequest.count({ where: { slot: { creatorId: req.userId } } }),
+    // Plateforme
+    prisma.user.count({ where: { firstSessionAt: { not: null } } }),
+    prisma.slot.count({ where: { completedAt: { gte: startOfWeek } } }),
+    prisma.slot.count({ where: { completedAt: { gte: startOfMonth } } }),
+    prisma.user.findUnique({ where: { id: req.userId }, select: { sessionsCompleted: true, sessionsNoShow: true } }),
+  ]);
+
+  const reviewCount = myReviews.length;
+  const avgRating = reviewCount ? myReviews.reduce((a, f) => a + f.rating, 0) / reviewCount : null;
+  // Points bienveillants : 10 par session terminée, jamais retirés
+  const points = (me?.sessionsCompleted || 0) * 10;
+
+  res.json({
+    sessions: {
+      completed: sessionsDone,
+      upcoming:  sessionsUpcoming,
+      active:    sessionsActive,
+      cancelled: sessionsCancelled,
+    },
+    user: {
+      points,
+      averageRating: avgRating !== null ? Math.round(avgRating * 10) / 10 : null,
+      reviewCount,
+      matchSuccessRate: matchRequested ? Math.round((matchConfirmed / matchRequested) * 100) : null,
+      sessionsCompleted: me?.sessionsCompleted || 0,
+    },
+    platform: {
+      activeUsers,
+      completedThisWeek,
+      completedThisMonth,
+    },
   });
 });
 

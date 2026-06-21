@@ -2,8 +2,31 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 
 const router = Router();
+
+// ── Upload photo de profil (avatar) ──────────────────────────────────────────
+const AVATAR_DIR = path.join(process.cwd(), 'uploads', 'avatars');
+if (!fs.existsSync(AVATAR_DIR)) fs.mkdirSync(AVATAR_DIR, { recursive: true });
+
+const avatarUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, AVATAR_DIR),
+    filename:    (_req, file, cb) => {
+      const ext = path.extname(file.originalname).toLowerCase();
+      cb(null, `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
+    },
+  }),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5 Mo
+  fileFilter: (_req, file, cb) => {
+    const allowed = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+    if (allowed.includes(path.extname(file.originalname).toLowerCase())) cb(null, true);
+    else cb(new Error('Format non supporté. Utilisez JPG, PNG, GIF ou WEBP.'));
+  },
+});
 
 const updateProfileSchema = z.object({
   name:            z.string().min(1).max(50).optional(),
@@ -20,6 +43,7 @@ const updateProfileSchema = z.object({
   lowStimMode:     z.boolean().optional(),
   sensitivities:   z.array(z.string()).optional(),
   goals:           z.array(z.string()).optional(),
+  preferredLanguages: z.array(z.string().max(5)).max(10).optional(),
   onboardingDone:  z.boolean().optional(),
   // Avatar ADAH AI
   aiAvatarUrl:     z.string().optional(),
@@ -36,6 +60,7 @@ router.get('/me', async (req: AuthRequest, res) => {
       select: {
         id: true, email: true, name: true, avatar: true, timezone: true,
         tdahType: true, workStyle: true, sensitivities: true, goals: true,
+        preferredLanguages: true,
         role: true, isPremium: true, lowStimMode: true, createdAt: true,
         badges: true,
         aiAvatarUrl: true, aiAvatarGender: true, aiVoicePref: true, aiAvatarStyle: true,
@@ -81,6 +106,7 @@ router.patch('/me', async (req: AuthRequest, res) => {
         phone: true, gender: true, birthDate: true,
         tdahType: true, diagnosisStatus: true,
         workStyle: true, workObjectives: true, availabilities: true,
+        preferredLanguages: true,
         lowStimMode: true, role: true, isPremium: true,
         onboardingDone: true, bio: true,
         aiAvatarUrl: true, aiAvatarGender: true, aiVoicePref: true, aiAvatarStyle: true,
@@ -89,6 +115,49 @@ router.patch('/me', async (req: AuthRequest, res) => {
     res.json(user);
   } catch (err) {
     if (err instanceof z.ZodError) return res.status(400).json({ error: err.errors });
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// POST /api/users/me/avatar — Changer sa photo de profil
+router.post('/me/avatar', (req: AuthRequest, res) => {
+  avatarUpload.single('avatar')(req as any, res as any, async (err: any) => {
+    if (err) return res.status(400).json({ error: err.message || 'Erreur upload' });
+    const file = (req as any).file as Express.Multer.File | undefined;
+    if (!file) return res.status(400).json({ error: 'Aucune image reçue' });
+
+    const BASE = process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 3001}`;
+    const avatarUrl = `${BASE}/uploads/avatars/${file.filename}`;
+
+    try {
+      // Supprimer l'ancienne photo locale (si hébergée chez nous)
+      const prev = await prisma.user.findUnique({ where: { id: req.userId! }, select: { avatar: true } });
+      if (prev?.avatar && prev.avatar.includes('/uploads/avatars/')) {
+        const oldPath = path.join(AVATAR_DIR, path.basename(prev.avatar));
+        fs.promises.unlink(oldPath).catch(() => {});
+      }
+      const user = await prisma.user.update({
+        where: { id: req.userId! },
+        data: { avatar: avatarUrl },
+        select: { id: true, name: true, avatar: true },
+      });
+      res.json({ avatar: user.avatar, user });
+    } catch {
+      res.status(500).json({ error: 'Erreur serveur' });
+    }
+  });
+});
+
+// DELETE /api/users/me/avatar — Retirer sa photo de profil
+router.delete('/me/avatar', async (req: AuthRequest, res) => {
+  try {
+    const prev = await prisma.user.findUnique({ where: { id: req.userId! }, select: { avatar: true } });
+    if (prev?.avatar && prev.avatar.includes('/uploads/avatars/')) {
+      fs.promises.unlink(path.join(AVATAR_DIR, path.basename(prev.avatar))).catch(() => {});
+    }
+    await prisma.user.update({ where: { id: req.userId! }, data: { avatar: null } });
+    res.json({ success: true });
+  } catch {
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });

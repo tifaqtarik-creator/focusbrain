@@ -16,6 +16,7 @@ import { getSocket } from '../lib/socket';
 import {
   reliability, getFavoriteIds, addFavorite, removeFavorite,
   getKpis, ensureNotifPermission, notify, googleCalendarUrl,
+  submitFeedback, completeSession,
 } from '../lib/bodyDoubling';
 
 const DURATIONS = [15, 25, 50, 75];
@@ -56,7 +57,8 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export default function Dashboard() {
-  useI18n();
+  const { t } = useI18n();
+  const sc = t.sessionCalendar;
   const user = useAppStore(s => s.user);
   const { candidates } = useSlotStore();
   const navigate = useNavigate();
@@ -76,6 +78,14 @@ export default function Dashboard() {
   const [slotCategory, setSlotCategory] = useState('travail');
   const [ambiance,     setAmbiance]     = useState('silence');
   const [energy,       setEnergy]       = useState('moyen');
+  // Type de session + description + récurrence
+  const [slotType,    setSlotType]    = useState<'INSTANT' | 'SCHEDULED' | 'RECURRING'>('SCHEDULED');
+  const [description, setDescription] = useState('');
+  const [recFreq,     setRecFreq]     = useState<'DAILY' | 'WEEKLY'>('WEEKLY');
+  const [recDays,     setRecDays]     = useState<number[]>([]);
+  const [recCount,    setRecCount]    = useState(4);
+  // Feedback de fin de session
+  const [feedbackSlot, setFeedbackSlot] = useState<any | null>(null);
   // États pour l'édition
   const [editDuration, setEditDuration] = useState(25);
   const [editTask,     setEditTask]     = useState('');
@@ -109,6 +119,21 @@ export default function Dashboard() {
     getKpis().then(setKpis).catch(() => {});
     ensureNotifPermission();
   }, []);
+
+  // ── Détection des sessions terminées → feedback de fin de session ──
+  useEffect(() => {
+    const ended = (mySlots as any[]).find((s: any) => {
+      if (s.status !== 'CONFIRMED') return false;
+      const end = new Date(s.startTime).getTime() + s.duration * 60000;
+      if (Date.now() < end) return false;                       // pas encore finie
+      if (localStorage.getItem(`fb_done_${s.id}`)) return false; // déjà noté/ignoré
+      return true;
+    });
+    if (ended && !feedbackSlot) {
+      completeSession(ended.id);             // KPI : marquer terminée (bienveillant)
+      setFeedbackSlot(ended);
+    }
+  }, [mySlots, feedbackSlot]);
 
   // ── Rappels de session en temps réel (push navigateur) ──
   useEffect(() => {
@@ -147,6 +172,7 @@ export default function Dashboard() {
       qc.invalidateQueries({ queryKey: ['slots-mine'] });
       setCreateModal(null);
       setCreatorTask(''); setTaskList([]); setSlotCategory('travail'); setAmbiance('silence'); setEnergy('moyen');
+      setSlotType('SCHEDULED'); setDescription(''); setRecFreq('WEEKLY'); setRecDays([]); setRecCount(4);
     },
   });
 
@@ -211,17 +237,22 @@ export default function Dashboard() {
   };
 
   // ── Événements calendrier ──────────────────────────────────────────────────
-  const events = slots.map((s: any) => ({
-    id: s.id,
-    title: s.creator.id === user?.id
-      ? `🧠 Mon créneau · ${s.duration}min`
-      : `${s.creator.name} · ${s.duration}min`,
-    start: s.startTime,
-    end: new Date(new Date(s.startTime).getTime() + s.duration * 60000).toISOString(),
-    backgroundColor: slotColor(s.status),
-    borderColor: slotColor(s.status),
-    extendedProps: s,
-  }));
+  const events = slots.map((s: any) => {
+    const isMine = s.creator.id === user?.id;
+    // Une fois confirmée, on affiche la photo du partenaire (sinon celle du créateur)
+    const shown = s.status === 'CONFIRMED'
+      ? (isMine ? s.partner : s.creator)
+      : s.creator;
+    return {
+      id: s.id,
+      title: isMine ? `Mon créneau · ${s.duration}min` : `${s.creator.name} · ${s.duration}min`,
+      start: s.startTime,
+      end: new Date(new Date(s.startTime).getTime() + s.duration * 60000).toISOString(),
+      backgroundColor: slotColor(s.status),
+      borderColor: slotColor(s.status),
+      extendedProps: { ...s, _shownAvatar: shown?.avatar || null, _shownName: shown?.name || '', _isMine: isMine },
+    };
+  });
 
   const confirmed = mySlots.filter((s: any) => s.status === 'CONFIRMED');
   const created   = mySlots.filter((s: any) => s.status !== 'CONFIRMED' && s.creatorId === user?.id);
@@ -468,12 +499,12 @@ export default function Dashboard() {
 
         <div className="bg-white border-b border-gray-100 px-6 py-3 flex items-center justify-between">
           <div>
-            <h1 className="font-black text-gray-900 text-lg">Calendrier des sessions</h1>
+            <h1 className="font-black text-gray-900 text-lg">{sc.title}</h1>
             <div className="flex gap-4 mt-1">
               {[
-                { color: 'bg-teal-500', label: 'Disponible' },
-                { color: 'bg-amber-400', label: 'Demandes en cours' },
-                { color: 'bg-red-500', label: 'Complet' },
+                { color: 'bg-teal-500', label: sc.legendAvailable },
+                { color: 'bg-amber-400', label: sc.legendPending },
+                { color: 'bg-red-500', label: sc.legendComplete },
               ].map(l => (
                 <span key={l.label} className="flex items-center gap-1.5 text-xs text-gray-500">
                   <span className={`w-2.5 h-2.5 rounded-full ${l.color}`}/>
@@ -483,7 +514,7 @@ export default function Dashboard() {
             </div>
           </div>
           <p className="text-xs text-gray-400 bg-gray-50 rounded-xl px-3 py-2">
-            💡 Clique sur le calendrier pour créer un créneau
+            {sc.clickToCreate}
           </p>
         </div>
 
@@ -499,8 +530,8 @@ export default function Dashboard() {
                 center: 'title',
                 right: 'timeGridDay,timeGridWeek,dayGridMonth',
               }}
-              slotMinTime="07:00:00"
-              slotMaxTime="23:00:00"
+              slotMinTime="00:00:00"
+              slotMaxTime="24:00:00"
               allDaySlot={false}
               selectable={true}
               selectMirror={true}
@@ -519,11 +550,19 @@ export default function Dashboard() {
                   setJoinModal(slot);
                 }
               }}
-              eventContent={(arg) => (
-                <div className="px-1.5 py-0.5 overflow-hidden">
-                  <p className="text-xs font-bold text-white truncate">{arg.event.title}</p>
-                </div>
-              )}
+              eventContent={(arg) => {
+                const p: any = arg.event.extendedProps;
+                return (
+                  <div className="px-1 py-0.5 overflow-hidden flex items-center gap-1.5">
+                    <span className="w-9 h-9 rounded-full bg-white/30 overflow-hidden flex items-center justify-center text-sm font-black text-white shrink-0 border border-white/40">
+                      {p._shownAvatar
+                        ? <img src={p._shownAvatar} alt="" className="w-full h-full object-cover" />
+                        : (p._shownName?.[0]?.toUpperCase() || '🧠')}
+                    </span>
+                    <p className="text-xs font-bold text-white truncate">{arg.event.title}</p>
+                  </div>
+                );
+              }}
             />
           </div>
         </div>
@@ -538,12 +577,59 @@ export default function Dashboard() {
             <motion.div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl max-h-[92vh] overflow-y-auto"
               initial={{ scale: 0.95, y: 10 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 10 }}
               onClick={e => e.stopPropagation()}>
-              <h3 className="font-black text-gray-900 text-xl mb-1">Créer un créneau</h3>
-              <p className="text-sm text-gray-500 mb-5">
-                📅 {createModal.start.toLocaleDateString('fr', { weekday: 'long', day: 'numeric', month: 'long' })}
-                {' · '}
-                {createModal.start.toLocaleTimeString('fr', { hour: '2-digit', minute: '2-digit' })}
-              </p>
+              <h3 className="font-black text-gray-900 text-xl mb-3">{sc.createTitle}</h3>
+
+              {/* Type de session */}
+              <div className="grid grid-cols-3 gap-2 mb-3">
+                {([
+                  { id: 'INSTANT',   label: sc.typeInstant,   emoji: '⚡' },
+                  { id: 'SCHEDULED', label: sc.typeScheduled, emoji: '📅' },
+                  { id: 'RECURRING', label: sc.typeRecurring, emoji: '🔁' },
+                ] as const).map(ty => (
+                  <button key={ty.id} onClick={() => setSlotType(ty.id)}
+                    className={`py-2 rounded-xl text-xs font-bold transition-colors ${slotType === ty.id ? 'bg-teal-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                    {ty.emoji} {ty.label}
+                  </button>
+                ))}
+              </div>
+
+              {slotType === 'INSTANT' ? (
+                <p className="text-sm text-teal-700 bg-teal-50 rounded-xl px-3 py-2 mb-5">{sc.instantHint}</p>
+              ) : (
+                <p className="text-sm text-gray-500 mb-5">
+                  📅 {createModal.start.toLocaleDateString('fr', { weekday: 'long', day: 'numeric', month: 'long' })}
+                  {' · '}
+                  {createModal.start.toLocaleTimeString('fr', { hour: '2-digit', minute: '2-digit' })}
+                </p>
+              )}
+
+              {/* Options de récurrence */}
+              {slotType === 'RECURRING' && (
+                <div className="bg-purple-50 border border-purple-100 rounded-xl p-3 mb-5">
+                  <p className="text-xs font-bold text-purple-700 mb-2">{sc.repetition}</p>
+                  <div className="grid grid-cols-2 gap-2 mb-3">
+                    {([{ id: 'DAILY', label: sc.daily }, { id: 'WEEKLY', label: sc.weekly }] as const).map(f => (
+                      <button key={f.id} onClick={() => setRecFreq(f.id)}
+                        className={`py-2 rounded-lg text-xs font-bold transition-colors ${recFreq === f.id ? 'bg-purple-500 text-white' : 'bg-white text-gray-600 border border-purple-200'}`}>
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
+                  {recFreq === 'WEEKLY' && (
+                    <div className="flex gap-1 mb-3">
+                      {['D', 'L', 'M', 'M', 'J', 'V', 'S'].map((d, i) => (
+                        <button key={i} onClick={() => setRecDays(p => p.includes(i) ? p.filter(x => x !== i) : [...p, i])}
+                          className={`flex-1 py-1.5 rounded-lg text-xs font-bold ${recDays.includes(i) ? 'bg-purple-500 text-white' : 'bg-white text-gray-500 border border-purple-200'}`}>
+                          {d}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <label className="text-xs font-bold text-purple-700">{sc.occurrences} : {recCount}</label>
+                  <input type="range" min={2} max={12} value={recCount} onChange={e => setRecCount(Number(e.target.value))}
+                    className="w-full accent-purple-500 mt-1" />
+                </div>
+              )}
 
               <p className="text-sm font-bold text-gray-700 mb-3">Durée de la session</p>
               <div className="grid grid-cols-4 gap-2 mb-5">
@@ -595,6 +681,18 @@ export default function Dashboard() {
                 </div>
               )}
 
+              {/* Description facultative */}
+              <p className="text-sm font-bold text-gray-700 mb-2">
+                {sc.descriptionLabel} <span className="text-gray-400 font-normal ml-1">{sc.optional}</span>
+              </p>
+              <textarea
+                value={description}
+                onChange={e => setDescription(e.target.value.slice(0, 500))}
+                placeholder={sc.descriptionPlaceholder}
+                rows={2}
+                className="w-full border-2 border-gray-200 focus:border-teal-400 rounded-xl px-4 py-2.5 text-sm outline-none mb-4 resize-none"
+              />
+
               {/* Ambiance */}
               <p className="text-sm font-bold text-gray-700 mb-2">Ambiance</p>
               <div className="grid grid-cols-2 gap-2 mb-4">
@@ -619,17 +717,25 @@ export default function Dashboard() {
 
               <button
                 onClick={() => createSlot.mutate({
-                  startTime: createModal.start.toISOString(),
+                  type: slotType,
+                  ...(slotType !== 'INSTANT' && { startTime: createModal.start.toISOString() }),
                   duration,
                   tasks: [...taskList, creatorTask.trim()].filter(Boolean),
+                  description: description.trim() || undefined,
                   category: slotCategory,
                   ambiance,
                   energy,
+                  ...(slotType === 'RECURRING' && {
+                    recurrence: { freq: recFreq, days: recFreq === 'WEEKLY' ? recDays : undefined, count: recCount },
+                  }),
                 })}
                 disabled={createSlot.isPending}
                 className="w-full bg-teal-500 text-white font-black py-4 rounded-xl hover:bg-teal-600 transition-colors disabled:opacity-50 text-base"
               >
-                {createSlot.isPending ? '⏳ Création...' : '✅ Créer ce créneau'}
+                {createSlot.isPending ? sc.creating
+                  : slotType === 'INSTANT' ? sc.btnStartNow
+                  : slotType === 'RECURRING' ? sc.btnCreateRecurring.replace('{n}', String(recCount))
+                  : sc.btnCreate}
               </button>
               {createSlot.isError && (
                 <p className="text-red-500 text-xs mt-2 text-center">
@@ -898,6 +1004,97 @@ export default function Dashboard() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* ── MODAL — FEEDBACK DE FIN DE SESSION (bienveillant) ────────────────── */}
+      <AnimatePresence>
+        {feedbackSlot && (
+          <FeedbackModal
+            slot={feedbackSlot}
+            currentUserId={user?.id}
+            onDone={() => {
+              localStorage.setItem(`fb_done_${feedbackSlot.id}`, '1');
+              setFeedbackSlot(null);
+            }}
+          />
+        )}
+      </AnimatePresence>
     </div>
+  );
+}
+
+// ── Modal de retour d'expérience (note l'EXPÉRIENCE, pas la personne · anti-RSD) ──
+function FeedbackModal({ slot, currentUserId, onDone }: { slot: any; currentUserId?: string; onDone: () => void }) {
+  const sc = useI18n(s => s.t).sessionCalendar;
+  const [rating, setRating]   = useState(0);
+  const [hover, setHover]     = useState(0);
+  const [comment, setComment] = useState('');
+  const [mood, setMood]       = useState('');
+  const [saving, setSaving]   = useState(false);
+  const partner = slot.creatorId === currentUserId ? slot.partner : slot.creator;
+
+  const submit = async () => {
+    if (!rating) return;
+    setSaving(true);
+    try { await submitFeedback(slot.id, { rating, comment: comment.trim() || undefined, mood: mood || undefined }); }
+    catch { /* ignore */ }
+    setSaving(false);
+    onDone();
+  };
+
+  return (
+    <motion.div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4"
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+      <motion.div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl"
+        initial={{ scale: 0.94, y: 10 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.94 }}>
+        <div className="text-center mb-4">
+          <div className="text-4xl mb-2">🎉</div>
+          <h3 className="font-black text-gray-900 text-lg">{sc.fbTitle}</h3>
+          <p className="text-sm text-gray-500 mt-1">
+            {partner?.name ? sc.fbQuestionWith.replace('{name}', partner.name) : sc.fbQuestion}
+          </p>
+        </div>
+
+        {/* Étoiles */}
+        <div className="flex justify-center gap-1.5 mb-4">
+          {[1, 2, 3, 4, 5].map(n => (
+            <button key={n} onClick={() => setRating(n)} onMouseEnter={() => setHover(n)} onMouseLeave={() => setHover(0)}
+              aria-label={`${n} étoile${n > 1 ? 's' : ''}`}
+              className={`text-3xl transition-transform hover:scale-110 ${(hover || rating) >= n ? 'text-amber-400' : 'text-gray-200'}`}>
+              ★
+            </button>
+          ))}
+        </div>
+
+        {/* Humeur après session */}
+        <div className="flex justify-center gap-2 mb-4">
+          {['😄', '🙂', '😐', '😕', '😴'].map(m => (
+            <button key={m} onClick={() => setMood(m === mood ? '' : m)}
+              className={`text-2xl w-10 h-10 rounded-xl transition-colors ${mood === m ? 'bg-teal-100' : 'hover:bg-gray-100'}`}>
+              {m}
+            </button>
+          ))}
+        </div>
+
+        {/* Commentaire facultatif (privé) */}
+        <textarea
+          value={comment}
+          onChange={e => setComment(e.target.value.slice(0, 500))}
+          placeholder={sc.fbCommentPlaceholder}
+          rows={2}
+          className="w-full border-2 border-gray-200 focus:border-teal-400 rounded-xl px-4 py-2.5 text-sm outline-none mb-4 resize-none"
+        />
+
+        <div className="flex gap-3">
+          <button onClick={onDone}
+            className="flex-1 border-2 border-gray-200 text-gray-600 font-bold py-3 rounded-xl hover:bg-gray-50 text-sm">
+            {sc.fbLater}
+          </button>
+          <button onClick={submit} disabled={!rating || saving}
+            className="flex-1 bg-teal-500 hover:bg-teal-600 disabled:opacity-40 text-white font-black py-3 rounded-xl text-sm">
+            {saving ? '⏳...' : sc.fbSend}
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
   );
 }

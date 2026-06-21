@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { useAppStore } from '../stores/useStore';
 import { useI18n, LANGUAGES } from '../lib/i18n';
 import api from '../lib/api';
@@ -9,6 +10,17 @@ export default function Settings() {
   const { t, lang, setLang } = useI18n();
   const s = t.settings;
   const navigate = useNavigate();
+
+  // Langues préférées pour l'appariement
+  const [prefLangs, setPrefLangs] = useState<string[]>([]);
+  useEffect(() => {
+    api.get('/users/me').then(r => setPrefLangs(r.data.preferredLanguages || [])).catch(() => {});
+  }, []);
+  const togglePrefLang = (code: string) => {
+    const next = prefLangs.includes(code) ? prefLangs.filter(c => c !== code) : [...prefLangs, code];
+    setPrefLangs(next);
+    api.patch('/users/me', { preferredLanguages: next }).catch(() => {});
+  };
 
   const handleDelete = async () => {
     if (!confirm(s.deleteConfirm)) return;
@@ -48,6 +60,31 @@ export default function Settings() {
                 <span>{l.label}</span>
               </button>
             ))}
+          </div>
+        </motion.div>
+
+        {/* Langues préférées pour l'appariement — choix multiple */}
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.03 }} className="bg-white border border-gray-100 rounded-2xl p-5">
+          <h2 className="font-bold text-gray-900 mb-1">{t.sessionCalendar.matchLangTitle}</h2>
+          <p className="text-sm text-gray-500 mb-4">{t.sessionCalendar.matchLangDesc}</p>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {LANGUAGES.map(l => {
+              const active = prefLangs.includes(l.code);
+              return (
+                <button
+                  key={l.code}
+                  onClick={() => togglePrefLang(l.code)}
+                  aria-pressed={active}
+                  className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold transition-colors ${
+                    active ? 'bg-teal-500 text-white' : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  <span>{l.flag}</span>
+                  <span>{l.label}</span>
+                  {active && <span className="ml-auto">✓</span>}
+                </button>
+              );
+            })}
           </div>
         </motion.div>
 

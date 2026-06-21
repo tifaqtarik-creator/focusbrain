@@ -23,6 +23,18 @@ export const removeFavorite = (id: string) => api.delete(`/social/favorites/${id
 // ── KPIs ──
 export const getKpis = () => api.get('/slots/kpis').then(r => r.data);
 
+// ── Tableau de bord complet (KPI hiérarchisés) ──
+export interface DashboardStats {
+  sessions:  { completed: number; upcoming: number; active: number; cancelled: number };
+  user:      { points: number; averageRating: number | null; reviewCount: number; matchSuccessRate: number | null; sessionsCompleted: number };
+  platform:  { activeUsers: number; completedThisWeek: number; completedThisMonth: number };
+}
+export const getDashboardStats = () => api.get('/slots/stats').then(r => r.data as DashboardStats);
+
+// ── Feedback de fin de session ──
+export const submitFeedback = (slotId: string, data: { rating: number; comment?: string; mood?: string }) =>
+  api.post(`/slots/${slotId}/feedback`, data);
+
 // ── Notifications navigateur ──
 export async function ensureNotifPermission(): Promise<boolean> {
   if (!('Notification' in window)) return false;

@@ -3,6 +3,7 @@
  * KPIs positifs · Activité récente · Badges · Objectifs
  * Règle TDAH : jamais de culpabilité, toujours encourageant
  */
+import { useState, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
@@ -74,10 +75,41 @@ function KpiCard({ emoji, value, label, sub, color = 'teal', trend }: {
 
 export default function MonEspace() {
   const user = useAppStore(s => s.user);
+  const updateUser = useAppStore(s => s.updateUser);
+
+  // Upload photo de profil
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [photoError, setPhotoError] = useState('');
+
+  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { setPhotoError('Image trop lourde (5 Mo max)'); return; }
+    setPhotoError(''); setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('avatar', file);
+      const res = await api.post('/users/me/avatar', fd);
+      updateUser({ avatar: res.data.avatar });            // met à jour le store (header, calendrier…)
+    } catch (err: any) {
+      setPhotoError(err?.response?.data?.error || 'Erreur lors de l\'envoi');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ['my-stats'],
     queryFn: () => api.get('/users/me/stats').then(r => r.data),
+    staleTime: 60000,
+  });
+
+  // Stats Body Doubling (transférées depuis le Dashboard) — Sessions / Moi / Plateforme
+  const { data: bd, isLoading: bdLoading } = useQuery({
+    queryKey: ['bd-stats'],
+    queryFn: () => api.get('/slots/stats').then(r => r.data),
     staleTime: 60000,
   });
 
@@ -110,11 +142,32 @@ export default function MonEspace() {
         className="bg-gradient-to-br from-teal-500 to-teal-600 rounded-3xl p-6 text-white"
       >
         <div className="flex items-center gap-5">
-          <div className="w-20 h-20 rounded-2xl overflow-hidden border-4 border-white/30 shrink-0">
-            {user?.avatar
-              ? <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
-              : <div className="w-full h-full bg-teal-400 flex items-center justify-center text-white font-black text-3xl">{user?.name?.[0]}</div>
-            }
+          <div className="shrink-0">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              title="Changer ma photo de profil"
+              aria-label="Changer ma photo de profil"
+              className="relative group w-20 h-20 rounded-2xl overflow-hidden border-4 border-white/30 block focus:outline-none focus:ring-2 focus:ring-white/60"
+            >
+              {user?.avatar
+                ? <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
+                : <div className="w-full h-full bg-teal-400 flex items-center justify-center text-white font-black text-3xl">{user?.name?.[0]}</div>
+              }
+              {/* Overlay au survol / pendant l'upload */}
+              <span className={`absolute inset-0 flex items-center justify-center bg-black/45 text-white text-xl transition-opacity ${uploading ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                {uploading ? '⏳' : '📷'}
+              </span>
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/gif,image/webp"
+              onChange={handlePhotoChange}
+              className="hidden"
+            />
+            {photoError && <p className="text-[11px] text-amber-100 bg-red-500/40 rounded px-1.5 py-0.5 mt-1 max-w-[88px]">{photoError}</p>}
           </div>
           <div className="flex-1">
             <h1 className="text-2xl font-black mb-1">{user?.name}</h1>
@@ -205,6 +258,56 @@ export default function MonEspace() {
               label="Rencontres réelles"
               sub="confirmées"
               color="green" />
+          </div>
+        )}
+      </section>
+
+      {/* ── Body Doubling — MOI (transféré depuis le Dashboard) ───────────── */}
+      <section>
+        <h2 className="text-lg font-black text-gray-900 mb-4">⭐ Mon Body Doubling</h2>
+        {bdLoading || !bd ? (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[1,2,3,4].map(i => <div key={i} className="bg-gray-100 rounded-2xl p-5 animate-pulse h-28" />)}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <KpiCard emoji="🎯" value={bd.user.sessionsCompleted} label="Sessions complétées" sub="body doubling" color="teal" />
+            <KpiCard emoji="💜" value={bd.user.points} label="Points" sub="cumulés (jamais perdus)" color="purple" />
+            <KpiCard emoji="⭐" value={bd.user.averageRating != null ? `${bd.user.averageRating}/5` : '—'} label="Note moyenne" sub={`${bd.user.reviewCount} avis reçu${bd.user.reviewCount > 1 ? 's' : ''}`} color="amber" />
+            <KpiCard emoji="🤝" value={bd.user.matchSuccessRate != null ? `${bd.user.matchSuccessRate}%` : '—'} label="Taux d'appariement" sub="demandes confirmées" color="green" />
+          </div>
+        )}
+      </section>
+
+      {/* ── Body Doubling — SESSIONS (plateforme) ─────────────────────────── */}
+      <section>
+        <h2 className="text-lg font-black text-gray-900 mb-4">📅 Les sessions en direct</h2>
+        {bdLoading || !bd ? (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[1,2,3,4].map(i => <div key={i} className="bg-gray-100 rounded-2xl p-5 animate-pulse h-28" />)}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <KpiCard emoji="✅" value={bd.sessions.completed} label="Terminées" sub="au total" color="green" />
+            <KpiCard emoji="📅" value={bd.sessions.upcoming} label="À venir" sub="programmées" color="teal" />
+            <KpiCard emoji="🟢" value={bd.sessions.active} label="Actives" sub="en ce moment" color="blue" />
+            <KpiCard emoji="⚪" value={bd.sessions.cancelled} label="Annulées" sub="au total" color="amber" />
+          </div>
+        )}
+      </section>
+
+      {/* ── Body Doubling — PLATEFORME ────────────────────────────────────── */}
+      <section>
+        <h2 className="text-lg font-black text-gray-900 mb-4">🌐 La plateforme FocusBrain</h2>
+        {bdLoading || !bd ? (
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            {[1,2,3].map(i => <div key={i} className="bg-gray-100 rounded-2xl p-5 animate-pulse h-28" />)}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <KpiCard emoji="👥" value={bd.platform.activeUsers} label="Membres actifs" sub="ont déjà lancé une session" color="purple" />
+            <KpiCard emoji="📆" value={bd.platform.completedThisWeek} label="Sessions cette semaine" sub="terminées" color="teal" />
+            <KpiCard emoji="🗓️" value={bd.platform.completedThisMonth} label="Sessions ce mois" sub="terminées" color="pink" />
           </div>
         )}
       </section>
