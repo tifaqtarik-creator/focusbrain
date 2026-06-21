@@ -489,6 +489,8 @@ export default function LiveSession() {
           token={livekitToken}
           serverUrl={livekitUrl}
           connect={true}
+          video={true}
+          audio={true}
           onDisconnected={() => setPhase('done')}
           options={{
             adaptiveStream: true,
