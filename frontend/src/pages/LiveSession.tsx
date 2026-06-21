@@ -8,10 +8,15 @@ import { completeSession, reliability, getFavoriteIds, addFavorite, removeFavori
 // LiveKit imports
 import {
   LiveKitRoom,
-  VideoConference,
   RoomAudioRenderer,
+  GridLayout,
+  ParticipantTile,
+  Chat,
+  useTracks,
   useRemoteParticipants,
+  useTrackToggle,
 } from '@livekit/components-react';
+import { Track } from 'livekit-client';
 import '@livekit/components-styles';
 
 // Overlay « en attente du partenaire » — visible tant que personne d'autre n'a rejoint
@@ -20,12 +25,86 @@ function WaitingForPartner({ name }: { name?: string }) {
   if (remotes.length > 0) return null;
   return (
     <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
-      <div className="bg-black/60 text-white rounded-2xl px-6 py-4 text-center backdrop-blur-sm">
+      <div className="bg-black/55 text-white rounded-2xl px-6 py-4 text-center backdrop-blur-sm">
         <div className="text-3xl mb-2 animate-pulse">⏳</div>
         <p className="font-bold">En attente de {name || 'ton partenaire'}…</p>
         <p className="text-xs text-white/70 mt-1">La session démarre dès qu'il/elle rejoint.</p>
       </div>
     </div>
+  );
+}
+
+// Bouton de contrôle réutilisable (icône + libellé FR, état actif/inactif)
+function CtrlBtn({ icon, label, active = true, danger = false, onClick }: {
+  icon: string; label: string; active?: boolean; danger?: boolean; onClick: () => void;
+}) {
+  const base = 'flex flex-col items-center justify-center gap-0.5 rounded-2xl px-3 py-2 min-w-[64px] text-[11px] font-bold transition-colors';
+  const cls = danger
+    ? 'bg-red-500/90 hover:bg-red-500 text-white'
+    : active
+      ? 'bg-teal-500/90 hover:bg-teal-500 text-white'
+      : 'bg-gray-700 hover:bg-gray-600 text-gray-300';
+  return (
+    <button onClick={onClick} className={`${base} ${cls}`}>
+      <span className="text-lg leading-none">{icon}</span>
+      <span className="leading-none">{label}</span>
+    </button>
+  );
+}
+
+// Corps de la salle (dans le contexte LiveKit) : grille vidéo + chat + barre de contrôle unique FR
+function RoomBody(props: {
+  partnerName?: string; chatOpen: boolean; setChatOpen: (v: boolean) => void;
+  onPause: () => void; onExtend: () => void; onLeave: () => void;
+}) {
+  const { partnerName, chatOpen, setChatOpen, onPause, onExtend, onLeave } = props;
+  const mic    = useTrackToggle({ source: Track.Source.Microphone });
+  const cam    = useTrackToggle({ source: Track.Source.Camera });
+  const screen = useTrackToggle({ source: Track.Source.ScreenShare });
+  const tracks = useTracks(
+    [{ source: Track.Source.Camera, withPlaceholder: true }, { source: Track.Source.ScreenShare, withPlaceholder: false }],
+    { onlySubscribed: false },
+  );
+
+  return (
+    <>
+      {/* Zone vidéo + chat latéral */}
+      <div className="flex-1 min-h-0 flex">
+        <div className="flex-1 relative min-w-0">
+          <GridLayout tracks={tracks} className="h-full">
+            <ParticipantTile />
+          </GridLayout>
+          <WaitingForPartner name={partnerName} />
+        </div>
+        {chatOpen && (
+          <div className="w-72 shrink-0 border-l border-gray-700 bg-gray-850 flex flex-col" style={{ background: '#1f2430' }}>
+            <div className="px-3 py-2 flex items-center justify-between text-white text-sm font-black border-b border-gray-700">
+              💬 Discussion
+              <button onClick={() => setChatOpen(false)} className="text-gray-400 hover:text-white">✕</button>
+            </div>
+            <div className="flex-1 min-h-0"><Chat /></div>
+          </div>
+        )}
+      </div>
+
+      {/* Barre de contrôle UNIQUE en français — tout visible, pas de scroll */}
+      <div className="shrink-0 bg-gray-800 border-t border-gray-700 px-4 py-2.5 flex items-center justify-center gap-2 flex-wrap">
+        {/* Groupe média */}
+        <div className="flex items-center gap-2 bg-gray-900/50 rounded-2xl p-1">
+          <CtrlBtn icon={mic.enabled ? '🎤' : '🔇'} label={mic.enabled ? 'Micro' : 'Coupé'} active={mic.enabled} onClick={() => mic.toggle()} />
+          <CtrlBtn icon={cam.enabled ? '📹' : '🚫'} label={cam.enabled ? 'Caméra' : 'Off'} active={cam.enabled} onClick={() => cam.toggle()} />
+          <CtrlBtn icon="🖥️" label={screen.enabled ? 'Arrêter' : 'Écran'} active={screen.enabled} onClick={() => screen.toggle()} />
+          <CtrlBtn icon="💬" label="Discussion" active={chatOpen} onClick={() => setChatOpen(!chatOpen)} />
+        </div>
+        {/* Groupe TDAH */}
+        <div className="flex items-center gap-2 bg-gray-900/50 rounded-2xl p-1">
+          <CtrlBtn icon="☕" label="Pause" active={false} onClick={onPause} />
+          <CtrlBtn icon="⏱️" label="+10 min" active={false} onClick={onExtend} />
+        </div>
+        {/* Quitter */}
+        <CtrlBtn icon="🚪" label="Quitter" danger onClick={onLeave} />
+      </div>
+    </>
   );
 }
 
@@ -42,6 +121,7 @@ export default function LiveSession() {
   const [fallback, setFallback] = useState(false);
   const [isFavorite, setIsFavorite] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
   const liveRef = useRef<HTMLDivElement>(null);
   const [task, setTask] = useState('');
   const [_taskSet, setTaskSet] = useState(false);
@@ -285,9 +365,9 @@ export default function LiveSession() {
   // ── Session LIVE ───────────────────────────────────────────────────────────
   if (phase === 'live') {
     return (
-      <div ref={liveRef} className="h-screen flex flex-col bg-gray-900">
+      <div ref={liveRef} className="h-screen flex flex-col bg-gray-900 overflow-hidden">
         {/* Header : minuteur · tâches · carte partenaire + plein écran */}
-        <div className="bg-gray-800 px-4 py-3 flex items-center justify-between gap-3">
+        <div className="shrink-0 bg-gray-800 px-4 py-2.5 flex items-center justify-between gap-3 border-b border-gray-700">
           <div className="flex items-center gap-3 shrink-0">
             <div className="text-2xl font-black text-white tabular-nums">{mins}:{secs}</div>
             <div className="w-28 h-2 bg-gray-600 rounded-full overflow-hidden">
@@ -330,65 +410,45 @@ export default function LiveSession() {
           </div>
         </div>
 
-        {/* Vidéo LiveKit */}
-        <div className="flex-1 overflow-hidden relative">
-          <LiveKitRoom
-            token={livekitToken}
-            serverUrl={livekitUrl}
-            connect={true}
-            onDisconnected={() => setPhase('done')}
-            options={{
-              adaptiveStream: true,
-              dynacast: true,
-              audioCaptureDefaults: {
-                noiseSuppression: true,
-                echoCancellation: true,
-                autoGainControl: true,
-              },
-            }}
-          >
-            <VideoConference />
-            <RoomAudioRenderer />
-            <WaitingForPartner name={slot?.partner?.name} />
-          </LiveKitRoom>
-        </div>
+        {/* Salle LiveKit : vidéo + chat + barre de contrôle unique (français) — tout dans l'écran */}
+        <LiveKitRoom
+          token={livekitToken}
+          serverUrl={livekitUrl}
+          connect={true}
+          onDisconnected={() => setPhase('done')}
+          options={{
+            adaptiveStream: true,
+            dynacast: true,
+            audioCaptureDefaults: {
+              noiseSuppression: true,
+              echoCancellation: true,
+              autoGainControl: true,
+            },
+          }}
+          className="flex-1 min-h-0 flex flex-col"
+        >
+          {/* Bandeau : pause proposée par le partenaire */}
+          <AnimatePresence>
+            {breakProposed && !breakActive && (
+              <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                className="shrink-0 bg-amber-500 text-white text-xs font-bold px-4 py-2 flex items-center justify-center gap-2">
+                ☕ {slot?.partner?.name || 'Ton partenaire'} propose une pause
+                <button onClick={() => { getSocket().emit('session:break_accept', { slotId }); setBreakActive(true); }}
+                  className="bg-white text-amber-600 px-2 py-0.5 rounded-lg">Accepter</button>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-        {/* Contrôles TDAH */}
-        <div className="bg-gray-800 px-6 py-3 flex items-center justify-between">
-          <div className="flex gap-2">
-            <AnimatePresence>
-              {breakProposed && !breakActive && (
-                <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
-                  className="bg-amber-500 text-white text-xs font-bold px-3 py-2 rounded-xl flex items-center gap-2">
-                  ☕ Pause proposée
-                  <button onClick={() => {
-                    getSocket().emit('session:break_accept', { slotId });
-                    setBreakActive(true);
-                  }} className="bg-white text-amber-500 px-2 py-0.5 rounded-lg">Accepter</button>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-
-          <div className="flex gap-2">
-            <button
-              onClick={() => getSocket().emit('session:break_propose', { slotId })}
-              className="text-xs bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-xl transition-colors"
-            >
-              ☕ Pause
-            </button>
-            <button
-              onClick={() => getSocket().emit('session:extend_request', { slotId })}
-              className="text-xs bg-teal-700 hover:bg-teal-600 text-white px-4 py-2 rounded-xl transition-colors"
-            >
-              +10 min
-            </button>
-            <button onClick={leave}
-              className="text-xs text-gray-400 hover:text-white px-4 py-2 transition-colors">
-              🚪 Quitter
-            </button>
-          </div>
-        </div>
+          <RoomBody
+            partnerName={slot?.partner?.name}
+            chatOpen={chatOpen}
+            setChatOpen={setChatOpen}
+            onPause={() => getSocket().emit('session:break_propose', { slotId })}
+            onExtend={() => getSocket().emit('session:extend_request', { slotId })}
+            onLeave={leave}
+          />
+          <RoomAudioRenderer />
+        </LiveKitRoom>
       </div>
     );
   }
