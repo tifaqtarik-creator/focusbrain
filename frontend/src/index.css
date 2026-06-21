@@ -110,3 +110,45 @@
     font-size: max(16px, 1rem);
   }
 }
+
+/* ── Chat LiveKit — thème sombre cohérent FocusBrain ── */
+.fb-chat {
+  --lk-bg: #1f2430;
+  --lk-bg2: #2a3142;
+  --lk-fg: #e5e7eb;
+  --lk-fg2: #9ca3af;
+  --lk-accent-bg: #14b8a6;
+  --lk-accent-fg: #ffffff;
+  --lk-border-color: rgba(255, 255, 255, 0.08);
+  background: #1f2430;
+  color: #e5e7eb;
+}
+.fb-chat .lk-chat,
+.fb-chat .lk-chat-messages { background: transparent !important; }
+.fb-chat .lk-chat-entry,
+.fb-chat .lk-message-body,
+.fb-chat .lk-participant-name { color: #e5e7eb !important; }
+.fb-chat .lk-message-body { color: #cbd5e1 !important; }
+.fb-chat .lk-chat-form {
+  background: #1f2430 !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+  padding: 8px !important;
+}
+.fb-chat .lk-form-control,
+.fb-chat .lk-chat-form-input,
+.fb-chat input[type="text"] {
+  background: #2a3142 !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  border-radius: 10px !important;
+}
+.fb-chat .lk-chat-form-input::placeholder,
+.fb-chat input::placeholder { color: #9ca3af !important; }
+.fb-chat .lk-button,
+.fb-chat .lk-chat-form button,
+.fb-chat button[type="submit"] {
+  background: #14b8a6 !important;
+  color: #ffffff !important;
+  border-radius: 10px !important;
+  font-weight: 700 !important;
+}

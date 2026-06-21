@@ -9,8 +9,7 @@ import { completeSession, reliability, getFavoriteIds, addFavorite, removeFavori
 import {
   LiveKitRoom,
   RoomAudioRenderer,
-  GridLayout,
-  ParticipantTile,
+  VideoTrack,
   Chat,
   useTracks,
   useRemoteParticipants,
@@ -18,6 +17,37 @@ import {
 } from '@livekit/components-react';
 import { Track } from 'livekit-client';
 import '@livekit/components-styles';
+
+// Vignette personnalisée : vidéo si caméra active, sinon photo + nom du participant
+function FbTile({ trackRef }: { trackRef: any }) {
+  const p = trackRef.participant;
+  let meta: any = {};
+  try { meta = p?.metadata ? JSON.parse(p.metadata) : {}; } catch { /* ignore */ }
+  const name   = meta.name || p?.name || p?.identity || 'Participant';
+  const avatar = meta.avatar || null;
+  const isVideoSource = trackRef.source === Track.Source.Camera || trackRef.source === Track.Source.ScreenShare;
+  const pub = trackRef.publication;
+  const showVideo = isVideoSource && pub && !pub.isMuted && pub.track;
+  return (
+    <div className="relative bg-gray-800 rounded-2xl overflow-hidden flex items-center justify-center min-h-0">
+      {showVideo
+        ? <VideoTrack trackRef={trackRef} className="w-full h-full object-cover" />
+        : (
+          <div className="flex flex-col items-center gap-2 p-4">
+            <div className="w-24 h-24 rounded-full overflow-hidden bg-teal-600 flex items-center justify-center text-white text-4xl font-black">
+              {avatar ? <img src={avatar} alt="" className="w-full h-full object-cover" /> : (name[0]?.toUpperCase() || '?')}
+            </div>
+            <span className="text-base font-bold text-white">{name}</span>
+            <span className="text-xs text-gray-400">📷 caméra coupée</span>
+          </div>
+        )}
+      <span className="absolute bottom-2 left-2 bg-black/55 text-white text-xs font-bold px-2 py-0.5 rounded-lg flex items-center gap-1">
+        {avatar && <img src={avatar} className="w-4 h-4 rounded-full object-cover" alt="" />}
+        {name}
+      </span>
+    </div>
+  );
+}
 
 // Overlay « en attente du partenaire » — visible tant que personne d'autre n'a rejoint
 function WaitingForPartner({ name }: { name?: string }) {
@@ -66,18 +96,30 @@ function RoomBody(props: {
     { onlySubscribed: false },
   );
 
+  // Placeholder du chat en français (le composant LiveKit est en anglais par défaut)
+  useEffect(() => {
+    if (!chatOpen) return;
+    const t = setTimeout(() => {
+      const inp = document.querySelector('.fb-chat input') as HTMLInputElement | null;
+      if (inp) inp.placeholder = 'Écris un message…';
+    }, 250);
+    return () => clearTimeout(t);
+  }, [chatOpen]);
+
   return (
     <>
       {/* Zone vidéo + chat latéral */}
       <div className="flex-1 min-h-0 flex">
         <div className="flex-1 relative min-w-0">
-          <GridLayout tracks={tracks} className="h-full">
-            <ParticipantTile />
-          </GridLayout>
+          <div className={`h-full w-full grid gap-2 p-2 ${tracks.length > 1 ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1'}`}>
+            {tracks.map((tr, i) => (
+              <FbTile key={(tr.participant?.identity || '') + (tr.source || '') + i} trackRef={tr} />
+            ))}
+          </div>
           <WaitingForPartner name={partnerName} />
         </div>
         {chatOpen && (
-          <div className="w-72 shrink-0 border-l border-gray-700 bg-gray-850 flex flex-col" style={{ background: '#1f2430' }}>
+          <div className="fb-chat w-72 shrink-0 border-l border-gray-700 flex flex-col">
             <div className="px-3 py-2 flex items-center justify-between text-white text-sm font-black border-b border-gray-700">
               💬 Discussion
               <button onClick={() => setChatOpen(false)} className="text-gray-400 hover:text-white">✕</button>

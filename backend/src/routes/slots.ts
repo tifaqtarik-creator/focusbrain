@@ -8,7 +8,7 @@ const router = Router();
 const prisma = new PrismaClient();
 
 // ── Générer un token LiveKit ──────────────────────────────────────────────────
-async function generateLiveKitToken(userId: string, userName: string, roomName: string) {
+async function generateLiveKitToken(userId: string, userName: string, roomName: string, metadata?: string) {
   const apiKey = process.env.LIVEKIT_API_KEY;
   const apiSecret = process.env.LIVEKIT_API_SECRET;
 
@@ -17,6 +17,7 @@ async function generateLiveKitToken(userId: string, userName: string, roomName: 
   const token = new AccessToken(apiKey, apiSecret, {
     identity: userId,
     name: userName,
+    metadata,           // { name, avatar } — pour afficher la photo si caméra coupée
     ttl: '2h',
   });
 
@@ -485,7 +486,10 @@ router.get('/:id/token', async (req: any, res) => {
     data: { firstSessionAt: new Date() },
   });
 
-  const token = await generateLiveKitToken(req.userId, userName, roomName);
+  // Métadonnées du participant courant (nom + photo) pour l'affichage côté partenaire
+  const meDetails = isCreator ? slot.creator : slot.partner;
+  const meta = JSON.stringify({ name: meDetails?.name || userName, avatar: meDetails?.avatar || null });
+  const token = await generateLiveKitToken(req.userId, userName, roomName, meta);
 
   if (!token) {
     // Mode fallback si pas de clé LiveKit configurée

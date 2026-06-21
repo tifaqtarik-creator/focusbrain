@@ -46,10 +46,12 @@ export default function App() {
           <Route path="/payment/success" element={<PaymentSuccess />} />
           <Route path="/payment/cancel" element={<PaymentCancel />} />
 
+          {/* Salle Live en plein écran (hors Layout = pas de barre de nav, immersif) */}
+          <Route path="/live/:slotId" element={<PrivateRoute><LiveSession /></PrivateRoute>} />
+
           <Route element={<PrivateRoute><Layout /></PrivateRoute>}>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/session/:id" element={<Session />} />
-            <Route path="/live/:slotId" element={<LiveSession />} />
             <Route path="/map" element={<MapMembers />} />
             <Route path="/solo/:duration" element={<SoloSession />} />
             <Route path="/profile/me" element={<Profile />} />
