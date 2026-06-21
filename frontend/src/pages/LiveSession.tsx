@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Mic, MicOff, Video, VideoOff, MonitorUp, MessageSquare,
   Coffee, Clock, PhoneOff, Maximize, Minimize, Send, Paperclip,
+  LayoutGrid, Maximize2, Minimize2,
 } from 'lucide-react';
 import api from '../lib/api';
 import { useAppStore } from '../stores/useStore';
@@ -138,31 +139,34 @@ function FbChat({ onClose, slotId }: { onClose: () => void; slotId?: string }) {
 }
 
 // Vignette personnalisée : vidéo si caméra active, sinon photo + nom du participant
-function FbTile({ trackRef }: { trackRef: any }) {
+function FbTile({ trackRef, onClick, compact, focused }: { trackRef: any; onClick?: () => void; compact?: boolean; focused?: boolean }) {
   const p = trackRef.participant;
   let meta: any = {};
   try { meta = p?.metadata ? JSON.parse(p.metadata) : {}; } catch { /* ignore */ }
   const name   = meta.name || p?.name || p?.identity || 'Participant';
   const avatar = meta.avatar || null;
-  const isVideoSource = trackRef.source === Track.Source.Camera || trackRef.source === Track.Source.ScreenShare;
+  const isScreen = trackRef.source === Track.Source.ScreenShare;
+  const isVideoSource = trackRef.source === Track.Source.Camera || isScreen;
   const pub = trackRef.publication;
   const showVideo = isVideoSource && pub && !pub.isMuted && pub.track;
+  const avatarSize = compact ? 'w-10 h-10 text-base' : 'w-24 h-24 text-4xl';
   return (
-    <div className="relative bg-gray-800 rounded-2xl overflow-hidden flex items-center justify-center min-h-0">
+    <div onClick={onClick}
+      className={`relative bg-gray-800 rounded-2xl overflow-hidden flex items-center justify-center min-h-0 h-full w-full ${onClick ? 'cursor-pointer hover:ring-2 hover:ring-teal-400/60' : ''} ${focused ? 'ring-2 ring-teal-500' : ''}`}>
       {showVideo
-        ? <VideoTrack trackRef={trackRef} className="w-full h-full object-cover" />
+        ? <VideoTrack trackRef={trackRef} className={`w-full h-full ${isScreen ? 'object-contain bg-black' : 'object-cover'}`} />
         : (
-          <div className="flex flex-col items-center gap-2 p-4">
-            <div className="w-24 h-24 rounded-full overflow-hidden bg-teal-600 flex items-center justify-center text-white text-4xl font-black">
+          <div className="flex flex-col items-center gap-2 p-2">
+            <div className={`${avatarSize} rounded-full overflow-hidden bg-teal-600 flex items-center justify-center text-white font-black`}>
               {avatar ? <img src={avatar} alt="" className="w-full h-full object-cover" /> : (name[0]?.toUpperCase() || '?')}
             </div>
-            <span className="text-base font-bold text-white">{name}</span>
-            <span className="text-xs text-gray-400">📷 caméra coupée</span>
+            {!compact && <span className="text-base font-bold text-white">{name}</span>}
+            {!compact && <span className="text-xs text-gray-400">📷 caméra coupée</span>}
           </div>
         )}
-      <span className="absolute bottom-2 left-2 bg-black/55 text-white text-xs font-bold px-2 py-0.5 rounded-lg flex items-center gap-1">
-        {avatar && <img src={avatar} className="w-4 h-4 rounded-full object-cover" alt="" />}
-        {name}
+      <span className="absolute bottom-1.5 left-1.5 bg-black/55 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-lg flex items-center gap-1 max-w-[90%] truncate">
+        {avatar && <img src={avatar} className="w-3.5 h-3.5 rounded-full object-cover shrink-0" alt="" />}
+        {isScreen ? `🖥️ ${name}` : name}
       </span>
     </div>
   );
@@ -239,6 +243,36 @@ function RoomBody(props: {
     prevLen.current = chatMessages.length;
   }, [chatMessages.length, chatOpen]);
 
+  // ── Vue Focus / Mosaïque + plein écran d'un flux ──
+  const keyOf = (tr: any) => (tr.participant?.identity || '') + ':' + (tr.source || '');
+  const [focusedKey, setFocusedKey] = useState<string | null>(null);
+  const focusRef = useRef<HTMLDivElement>(null);
+  const [tileFs, setTileFs] = useState(false);
+
+  const screenTrack = tracks.find((t: any) => t.source === Track.Source.ScreenShare && t.publication?.track);
+  const screenKey = screenTrack ? keyOf(screenTrack) : null;
+  useEffect(() => { if (screenKey) setFocusedKey(screenKey); }, [screenKey]); // auto-focus partage d'écran
+
+  const focusedTrack = focusedKey ? tracks.find((t: any) => keyOf(t) === focusedKey) : null;
+  useEffect(() => { if (focusedKey && !focusedTrack) setFocusedKey(null); }, [focusedKey, focusedTrack]); // flux disparu → mosaïque
+  const others = tracks.filter((t: any) => keyOf(t) !== focusedKey);
+
+  useEffect(() => {
+    const onFs = () => setTileFs(!!document.fullscreenElement && document.fullscreenElement === focusRef.current);
+    document.addEventListener('fullscreenchange', onFs);
+    return () => document.removeEventListener('fullscreenchange', onFs);
+  }, []);
+  const toggleTileFs = () => {
+    if (!document.fullscreenElement) focusRef.current?.requestFullscreen?.().catch(() => {});
+    else document.exitFullscreen?.().catch(() => {});
+  };
+  const toggleView = () => {
+    if (focusedKey) { setFocusedKey(null); return; }
+    const remoteCam = tracks.find((t: any) => t.source === Track.Source.Camera && !(t.participant as any)?.isLocal);
+    const target = screenTrack || remoteCam || tracks[0];
+    if (target) setFocusedKey(keyOf(target));
+  };
+
   return (
     <>
       {/* Toast nouveau message (clic → ouvrir le chat) */}
@@ -251,11 +285,40 @@ function RoomBody(props: {
       {/* Zone vidéo + chat latéral */}
       <div className="flex-1 min-h-0 flex">
         <div className="flex-1 relative min-w-0">
-          <div className={`h-full w-full grid gap-2 p-2 ${tracks.length > 1 ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1'}`}>
-            {tracks.map((tr, i) => (
-              <FbTile key={(tr.participant?.identity || '') + (tr.source || '') + i} trackRef={tr} />
-            ))}
-          </div>
+          {focusedTrack ? (
+            // ── Vue FOCUS : grand flux + vignettes ──
+            <div className="h-full w-full flex flex-col gap-2 p-2">
+              <div ref={focusRef} className="flex-1 min-h-0 relative bg-black rounded-2xl overflow-hidden">
+                <FbTile trackRef={focusedTrack} focused />
+                <div className="absolute top-2 right-2 flex gap-1.5 z-20">
+                  <button onClick={toggleTileFs} title="Plein écran du flux"
+                    className="bg-black/55 hover:bg-black/75 text-white w-8 h-8 rounded-lg flex items-center justify-center">
+                    {tileFs ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+                  </button>
+                  <button onClick={() => setFocusedKey(null)} title="Vue mosaïque"
+                    className="bg-black/55 hover:bg-black/75 text-white w-8 h-8 rounded-lg flex items-center justify-center">
+                    <LayoutGrid size={16} />
+                  </button>
+                </div>
+              </div>
+              {others.length > 0 && (
+                <div className="h-24 shrink-0 flex gap-2 overflow-x-auto">
+                  {others.map((tr: any, i: number) => (
+                    <button key={keyOf(tr) + i} onClick={() => setFocusedKey(keyOf(tr))} className="h-full aspect-video shrink-0">
+                      <FbTile trackRef={tr} compact />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            // ── Vue MOSAÏQUE : clic sur un flux pour l'agrandir ──
+            <div className={`h-full w-full grid gap-2 p-2 ${tracks.length > 1 ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1'}`}>
+              {tracks.map((tr: any, i: number) => (
+                <FbTile key={keyOf(tr) + i} trackRef={tr} onClick={() => setFocusedKey(keyOf(tr))} />
+              ))}
+            </div>
+          )}
           <WaitingForPartner name={partnerName} />
         </div>
         {chatOpen && (
@@ -272,6 +335,7 @@ function RoomBody(props: {
           <CtrlBtn icon={mic.enabled ? <Mic size={20} /> : <MicOff size={20} />} label={mic.enabled ? 'Micro' : 'Coupé'} active={mic.enabled} onClick={() => mic.toggle()} />
           <CtrlBtn icon={cam.enabled ? <Video size={20} /> : <VideoOff size={20} />} label={cam.enabled ? 'Caméra' : 'Off'} active={cam.enabled} onClick={() => cam.toggle()} />
           <CtrlBtn icon={<MonitorUp size={20} />} label={screen.enabled ? 'Arrêter' : 'Écran'} active={screen.enabled} onClick={() => screen.toggle()} />
+          <CtrlBtn icon={focusedKey ? <LayoutGrid size={20} /> : <Maximize2 size={20} />} label={focusedKey ? 'Mosaïque' : 'Focus'} active={!!focusedKey} onClick={toggleView} />
           <CtrlBtn icon={<MessageSquare size={20} />} label="Discussion" active={chatOpen} onClick={() => setChatOpen(!chatOpen)} badge={!chatOpen && unread > 0 ? (unread > 9 ? '9+' : unread) : undefined} />
         </div>
         {/* Groupe TDAH */}
