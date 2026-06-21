@@ -1,9 +1,9 @@
-import { useEffect, useState, useRef, FormEvent, ReactNode } from 'react';
+import { useEffect, useState, useRef, FormEvent, ChangeEvent, ReactNode } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Mic, MicOff, Video, VideoOff, MonitorUp, MessageSquare,
-  Coffee, Clock, PhoneOff, Maximize, Minimize, Send,
+  Coffee, Clock, PhoneOff, Maximize, Minimize, Send, Paperclip,
 } from 'lucide-react';
 import api from '../lib/api';
 import { useAppStore } from '../stores/useStore';
@@ -23,8 +23,11 @@ import {
 import { Track } from 'livekit-client';
 import '@livekit/components-styles';
 
-// Bulle de message (photo + nom + heure)
-function Bubble({ mine, name, avatar, content, time }: { mine: boolean; name: string; avatar?: string | null; content: string; time?: string }) {
+// Bulle de message (photo + nom + heure + pièces jointes)
+function Bubble({ mine, name, avatar, content, time, attachments }: {
+  mine: boolean; name: string; avatar?: string | null; content?: string; time?: string;
+  attachments?: { url: string; name: string; mime: string }[];
+}) {
   return (
     <div className={`flex gap-2 ${mine ? 'justify-end' : 'justify-start'}`}>
       {!mine && (
@@ -34,7 +37,15 @@ function Bubble({ mine, name, avatar, content, time }: { mine: boolean; name: st
       )}
       <div className={`max-w-[78%] rounded-2xl px-3 py-2 text-sm break-words ${mine ? 'bg-teal-500 text-white rounded-br-sm' : 'bg-gray-700 text-gray-100 rounded-bl-sm'}`}>
         {!mine && <p className="text-[10px] font-bold opacity-70 mb-0.5">{name}</p>}
-        <p className="whitespace-pre-wrap">{content}</p>
+        {content ? <p className="whitespace-pre-wrap">{content}</p> : null}
+        {attachments?.map((f, i) => (
+          f.mime?.startsWith('image/')
+            ? <a key={i} href={f.url} target="_blank" rel="noreferrer" className="block mt-1"><img src={f.url} alt={f.name} className="rounded-lg max-h-44 w-auto" /></a>
+            : <a key={i} href={f.url} target="_blank" rel="noreferrer" download
+                className={`flex items-center gap-1.5 rounded-lg px-2 py-1.5 mt-1 text-xs ${mine ? 'bg-white/20 hover:bg-white/30' : 'bg-black/25 hover:bg-black/40'}`}>
+                <Paperclip size={13} className="shrink-0" /> <span className="truncate">{f.name}</span>
+              </a>
+        ))}
         {time && <p className={`text-[9px] mt-0.5 text-right ${mine ? 'text-white/60' : 'text-gray-400'}`}>{time}</p>}
       </div>
     </div>
@@ -59,13 +70,37 @@ function FbChat({ onClose, slotId }: { onClose: () => void; slotId?: string }) {
   const nameOf = (p: any) => { try { const m = p?.metadata ? JSON.parse(p.metadata) : {}; return m.name || p?.name || p?.identity || 'Participant'; } catch { return p?.name || p?.identity || 'Participant'; } };
   const avatarOf = (p: any) => { try { return p?.metadata ? (JSON.parse(p.metadata).avatar || null) : null; } catch { return null; } };
 
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  // Les messages temps réel transportent { t: texte, a: pièces jointes } (JSON)
+  const parseLive = (raw: string): { text: string; attachments: any[] } => {
+    try { const o = JSON.parse(raw); if (o && typeof o === 'object' && ('t' in o || 'a' in o)) return { text: o.t || '', attachments: o.a || [] }; } catch { /* texte brut */ }
+    return { text: raw, attachments: [] };
+  };
+  const sendMessage = (content: string, attachments: any[]) => {
+    send(JSON.stringify({ t: content, a: attachments }));                       // temps réel LiveKit
+    if (slotId) api.post(`/slots/${slotId}/messages`, { content, attachments }).catch(() => {}); // archive
+  };
   const submit = (e: FormEvent) => {
     e.preventDefault();
     const t = text.trim();
     if (!t) return;
-    send(t);                                                                   // temps réel LiveKit
-    if (slotId) api.post(`/slots/${slotId}/messages`, { content: t }).catch(() => {}); // archive en base
+    sendMessage(t, []);
     setText('');
+  };
+  const onFile = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !slotId) return;
+    if (file.size > 10 * 1024 * 1024) { alert('Fichier trop lourd (10 Mo max)'); return; }
+    setUploading(true);
+    try {
+      const fd = new FormData(); fd.append('file', file);
+      const { data } = await api.post(`/slots/${slotId}/chat-upload`, fd);
+      sendMessage('', [data]); // { url, name, mime }
+    } catch { /* ignore */ }
+    setUploading(false);
+    if (fileRef.current) fileRef.current.value = '';
   };
 
   const empty = history.length === 0 && chatMessages.length === 0;
@@ -79,17 +114,24 @@ function FbChat({ onClose, slotId }: { onClose: () => void; slotId?: string }) {
       <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2">
         {empty && <p className="text-center text-xs text-gray-500 mt-6">Aucun message pour l'instant.<br />Dis bonjour 👋</p>}
         {history.map((m: any) => (
-          <Bubble key={'h' + m.id} mine={m.from?.id === myId} name={m.from?.name || 'Participant'} avatar={m.from?.avatar} content={m.content} time={fmtTime(m.createdAt)} />
+          <Bubble key={'h' + m.id} mine={m.from?.id === myId} name={m.from?.name || 'Participant'} avatar={m.from?.avatar} content={m.content} time={fmtTime(m.createdAt)} attachments={m.attachments || undefined} />
         ))}
-        {chatMessages.map((m: any, i: number) => (
-          <Bubble key={'l' + (m.id || i)} mine={(m.from as any)?.isLocal} name={nameOf(m.from)} avatar={avatarOf(m.from)} content={m.message} time={fmtTime(m.timestamp)} />
-        ))}
+        {chatMessages.map((m: any, i: number) => {
+          const p = parseLive(m.message);
+          return <Bubble key={'l' + (m.id || i)} mine={(m.from as any)?.isLocal} name={nameOf(m.from)} avatar={avatarOf(m.from)} content={p.text} time={fmtTime(m.timestamp)} attachments={p.attachments} />;
+        })}
         <div ref={endRef} />
       </div>
-      <form onSubmit={submit} className="p-2 border-t border-white/10 flex gap-2 shrink-0">
+      <form onSubmit={submit} className="p-2 border-t border-white/10 flex gap-2 shrink-0 items-center">
+        <input ref={fileRef} type="file" onChange={onFile} className="hidden"
+          accept="image/*,.pdf,.doc,.docx,.txt,.zip" />
+        <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading} aria-label="Joindre un fichier"
+          className="text-gray-300 hover:text-white p-2 rounded-xl hover:bg-white/10 shrink-0 disabled:opacity-50">
+          {uploading ? <span className="text-xs">⏳</span> : <Paperclip size={18} />}
+        </button>
         <input value={text} onChange={e => setText(e.target.value)} placeholder="Écris un message…"
           className="flex-1 min-w-0 rounded-xl px-3 py-2 text-sm text-white outline-none border border-white/15 focus:border-teal-400" style={{ background: '#2a3142' }} />
-        <button type="submit" aria-label="Envoyer" className="bg-teal-500 hover:bg-teal-600 text-white px-3.5 rounded-xl shrink-0 flex items-center justify-center"><Send size={18} /></button>
+        <button type="submit" aria-label="Envoyer" className="bg-teal-500 hover:bg-teal-600 text-white px-3.5 py-2 rounded-xl shrink-0 flex items-center justify-center"><Send size={18} /></button>
       </form>
     </div>
   );
@@ -142,8 +184,8 @@ function WaitingForPartner({ name }: { name?: string }) {
 }
 
 // Bouton de contrôle réutilisable (icône + libellé FR, état actif/inactif)
-function CtrlBtn({ icon, label, active = true, danger = false, onClick }: {
-  icon: ReactNode; label: string; active?: boolean; danger?: boolean; onClick: () => void;
+function CtrlBtn({ icon, label, active = true, danger = false, onClick, badge }: {
+  icon: ReactNode; label: string; active?: boolean; danger?: boolean; onClick: () => void; badge?: string | number;
 }) {
   const base = 'flex flex-col items-center justify-center gap-1 rounded-2xl px-3 py-2 min-w-[64px] text-[11px] font-bold transition-colors';
   const cls = danger
@@ -153,7 +195,10 @@ function CtrlBtn({ icon, label, active = true, danger = false, onClick }: {
       : 'bg-gray-700 hover:bg-gray-600 text-gray-300';
   return (
     <button onClick={onClick} className={`${base} ${cls}`}>
-      <span className="flex items-center justify-center h-5">{icon}</span>
+      <span className="relative flex items-center justify-center h-5">
+        {icon}
+        {badge ? <span className="absolute -top-2 -right-3 bg-red-500 text-white text-[9px] font-black min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center">{badge}</span> : null}
+      </span>
       <span className="leading-none">{label}</span>
     </button>
   );
@@ -173,8 +218,36 @@ function RoomBody(props: {
     { onlySubscribed: false },
   );
 
+  // Notifications de messages (badge non-lus + toast) quand le chat est fermé
+  const { chatMessages } = useChat();
+  const [unread, setUnread] = useState(0);
+  const [toast, setToast]   = useState<string | null>(null);
+  const prevLen = useRef(0);
+  useEffect(() => {
+    if (chatOpen) { setUnread(0); prevLen.current = chatMessages.length; return; }
+    if (chatMessages.length > prevLen.current) {
+      const fresh = chatMessages.slice(prevLen.current).filter((m: any) => !(m.from as any)?.isLocal);
+      if (fresh.length) {
+        setUnread(u => u + fresh.length);
+        const last: any = fresh[fresh.length - 1];
+        let preview = ''; try { const o = JSON.parse(last.message); preview = o.a?.length ? '📎 pièce jointe' : (o.t || ''); } catch { preview = last.message; }
+        let nm = 'Partenaire'; try { nm = JSON.parse(last.from?.metadata || '{}').name || last.from?.name || nm; } catch { /* ignore */ }
+        setToast(`💬 ${nm} : ${String(preview).slice(0, 40)}`);
+        setTimeout(() => setToast(null), 4000);
+      }
+    }
+    prevLen.current = chatMessages.length;
+  }, [chatMessages.length, chatOpen]);
+
   return (
     <>
+      {/* Toast nouveau message (clic → ouvrir le chat) */}
+      {toast && (
+        <div onClick={() => setChatOpen(true)}
+          className="fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-gray-900/95 text-white text-sm font-bold px-4 py-2 rounded-xl shadow-lg cursor-pointer border border-white/10 max-w-[80%] truncate">
+          {toast}
+        </div>
+      )}
       {/* Zone vidéo + chat latéral */}
       <div className="flex-1 min-h-0 flex">
         <div className="flex-1 relative min-w-0">
@@ -199,7 +272,7 @@ function RoomBody(props: {
           <CtrlBtn icon={mic.enabled ? <Mic size={20} /> : <MicOff size={20} />} label={mic.enabled ? 'Micro' : 'Coupé'} active={mic.enabled} onClick={() => mic.toggle()} />
           <CtrlBtn icon={cam.enabled ? <Video size={20} /> : <VideoOff size={20} />} label={cam.enabled ? 'Caméra' : 'Off'} active={cam.enabled} onClick={() => cam.toggle()} />
           <CtrlBtn icon={<MonitorUp size={20} />} label={screen.enabled ? 'Arrêter' : 'Écran'} active={screen.enabled} onClick={() => screen.toggle()} />
-          <CtrlBtn icon={<MessageSquare size={20} />} label="Discussion" active={chatOpen} onClick={() => setChatOpen(!chatOpen)} />
+          <CtrlBtn icon={<MessageSquare size={20} />} label="Discussion" active={chatOpen} onClick={() => setChatOpen(!chatOpen)} badge={!chatOpen && unread > 0 ? (unread > 9 ? '9+' : unread) : undefined} />
         </div>
         {/* Groupe TDAH */}
         <div className="flex items-center gap-2 bg-gray-900/50 rounded-2xl p-1">

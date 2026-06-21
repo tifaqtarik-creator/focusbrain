@@ -3,9 +3,28 @@ import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import { randomUUID } from 'crypto';
 import { AccessToken } from 'livekit-server-sdk';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 
 const router = Router();
 const prisma = new PrismaClient();
+
+// ── Upload de pièces jointes du chat ─────────────────────────────────────────
+const CHAT_DIR = path.join(process.cwd(), 'uploads', 'chat');
+if (!fs.existsSync(CHAT_DIR)) fs.mkdirSync(CHAT_DIR, { recursive: true });
+const chatUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, CHAT_DIR),
+    filename:    (_req, file, cb) => cb(null, `${Date.now()}-${Math.random().toString(36).slice(2)}${path.extname(file.originalname).toLowerCase()}`),
+  }),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 Mo
+  fileFilter: (_req, file, cb) => {
+    const ok = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.pdf', '.doc', '.docx', '.txt', '.zip'];
+    if (ok.includes(path.extname(file.originalname).toLowerCase())) cb(null, true);
+    else cb(new Error('Format non supporté.'));
+  },
+});
 
 // ── Générer un token LiveKit ──────────────────────────────────────────────────
 async function generateLiveKitToken(userId: string, userName: string, roomName: string, metadata?: string) {
@@ -636,23 +655,52 @@ router.get('/:id/messages', async (req: any, res) => {
 // POST /api/slots/:id/messages — archiver un message envoyé
 router.post('/:id/messages', async (req: any, res) => {
   const schema = z.object({
-    content:     z.string().min(1).max(2000),
-    attachments: z.any().optional(),
+    content:     z.string().max(2000).optional(),
+    attachments: z.array(z.object({ url: z.string().max(500), name: z.string().max(200), mime: z.string().max(100) })).max(5).optional(),
   });
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Message invalide' });
-  const a = await assertParticipant(req.params.id, req.userId);
-  if (!a.ok) return res.status(a.code).json({ error: a.error });
+  if (!parsed.data.content?.trim() && !parsed.data.attachments?.length) {
+    return res.status(400).json({ error: 'Message vide' });
+  }
+  const slot = await prisma.slot.findUnique({ where: { id: req.params.id }, select: { creatorId: true, partnerId: true } });
+  if (!slot) return res.status(404).json({ error: 'Session introuvable' });
+  if (slot.creatorId !== req.userId && slot.partnerId !== req.userId) return res.status(403).json({ error: 'Non autorisé' });
+
   const msg = await prisma.slotMessage.create({
     data: {
       slotId: req.params.id,
       fromId: req.userId,
-      content: parsed.data.content,
+      content: parsed.data.content || '',
       attachments: parsed.data.attachments ?? undefined,
     },
     include: { from: { select: { id: true, name: true, avatar: true } } },
   });
+
+  // Notifier le partenaire (hors salle → cloche de notifications)
+  const io = req.app.get('io');
+  const otherId = slot.creatorId === req.userId ? slot.partnerId : slot.creatorId;
+  if (io && otherId) {
+    io.to(`user:${otherId}`).emit('chat:message', {
+      slotId: req.params.id,
+      fromName: msg.from.name,
+      preview: parsed.data.attachments?.length ? '📎 pièce jointe' : (parsed.data.content || '').slice(0, 60),
+    });
+  }
   res.status(201).json(msg);
+});
+
+// POST /api/slots/:id/chat-upload — pièce jointe du chat
+router.post('/:id/chat-upload', (req: any, res) => {
+  chatUpload.single('file')(req, res, async (err: any) => {
+    if (err) return res.status(400).json({ error: err.message || 'Erreur upload' });
+    const file = req.file as Express.Multer.File | undefined;
+    if (!file) return res.status(400).json({ error: 'Aucun fichier' });
+    const a = await assertParticipant(req.params.id, req.userId);
+    if (!a.ok) return res.status(a.code).json({ error: a.error });
+    const BASE = process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 3001}`;
+    res.json({ url: `${BASE}/uploads/chat/${file.filename}`, name: file.originalname, mime: file.mimetype });
+  });
 });
 
 // DELETE /api/slots/:id/messages — effacer l'historique (RGPD)

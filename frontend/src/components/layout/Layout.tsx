@@ -105,12 +105,24 @@ export default function Layout() {
       });
     });
 
+    // Nouveau message de chat (reçu hors de la salle)
+    socket.on('chat:message', (data: any) => {
+      if (location.pathname.startsWith('/live/')) return; // déjà visible dans la salle
+      addNotif({
+        type: 'message', emoji: '💬',
+        title: `Message de ${data.fromName || 'ton partenaire'}`,
+        body: data.preview || '',
+        link: data.slotId ? `/live/${data.slotId}` : '/dashboard',
+      });
+    });
+
     return () => {
       socket.off('forum:reply');
       socket.off('forum:reaction');
       socket.off('message:new');
       socket.off('meeting:proposed');
       socket.off('slot:confirmed');
+      socket.off('chat:message');
     };
   }, [user, location.pathname]);
 
