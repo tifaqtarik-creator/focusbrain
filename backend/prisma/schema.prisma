@@ -131,6 +131,7 @@ model User {
   slotsJoined       Slot[]            @relation("SlotPartner")
   slotRequests      SlotRequest[]
   slotFeedbacks     SlotFeedback[]
+  slotMessages      SlotMessage[]
   favorites         Favorite[]        @relation("FavUser")
   favoritedBy       Favorite[]        @relation("FavTarget")
   location          UserLocation?
@@ -409,8 +410,25 @@ model Slot {
   partner   User?          @relation("SlotPartner", fields: [partnerId], references: [id])
   requests  SlotRequest[]
   feedbacks SlotFeedback[]
+  messages  SlotMessage[]
 
   @@map("slots")
+}
+
+// Messages de chat archivés d'une session body doubling
+model SlotMessage {
+  id          String   @id @default(cuid())
+  slotId      String
+  fromId      String
+  content     String
+  attachments Json?                          // [{ url, name, mime }] (pièces jointes — lot ultérieur)
+  createdAt   DateTime @default(now())
+
+  slot Slot @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  from User @relation(fields: [fromId], references: [id])
+
+  @@index([slotId])
+  @@map("slot_messages")
 }
 
 // Satisfaction post-session body doubling

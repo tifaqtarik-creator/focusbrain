@@ -73,6 +73,12 @@ export default function Dashboard() {
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null); // id slot à supprimer
   const [cancelTarget, setCancelTarget] = useState<string | null>(null); // id session confirmée à annuler
   const [detailSlot,  setDetailSlot]  = useState<any | null>(null); // slot dont on voit les détails
+  const [detailMessages, setDetailMessages] = useState<any[]>([]); // conversation archivée
+  useEffect(() => {
+    if (detailSlot?.id) {
+      api.get(`/slots/${detailSlot.id}/messages`).then(r => setDetailMessages(r.data || [])).catch(() => setDetailMessages([]));
+    } else { setDetailMessages([]); }
+  }, [detailSlot]);
   const [duration, setDuration]       = useState(25);
   const [creatorTask,   setCreatorTask]   = useState('');
   const [candidateTask, setCandidateTask] = useState('');
@@ -981,6 +987,29 @@ export default function Dashboard() {
                   <p className="text-sm text-amber-700 bg-amber-50 rounded-lg px-3 py-2 mb-4">
                     ⏳ {s.requests.length} candidat{s.requests.length > 1 ? 's' : ''} en attente — choisis ton partenaire sur la carte.
                   </p>
+                )}
+
+                {/* Conversation archivée (lecture seule) */}
+                {detailMessages.length > 0 && (
+                  <div className="mb-4">
+                    <p className="text-xs font-bold text-gray-400 uppercase mb-2">💬 Conversation ({detailMessages.length})</p>
+                    <div className="space-y-1.5 max-h-52 overflow-y-auto bg-gray-50 rounded-xl p-2 border border-gray-100">
+                      {detailMessages.map((m: any) => {
+                        const mine = m.from?.id === user?.id;
+                        return (
+                          <div key={m.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+                            <div className={`max-w-[80%] rounded-xl px-2.5 py-1.5 text-xs break-words ${mine ? 'bg-teal-500 text-white' : 'bg-white border border-gray-200 text-gray-700'}`}>
+                              {!mine && <p className="text-[9px] font-bold opacity-60 mb-0.5">{m.from?.name}</p>}
+                              <span className="whitespace-pre-wrap">{m.content}</span>
+                              <span className={`block text-[8px] mt-0.5 ${mine ? 'text-white/60' : 'text-gray-400'}`}>
+                                {new Date(m.createdAt).toLocaleString('fr', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
                 )}
 
                 <div className="flex gap-2">

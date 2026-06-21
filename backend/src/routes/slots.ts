@@ -612,6 +612,57 @@ router.post('/:id/complete', async (req: any, res) => {
   res.json({ success: true });
 });
 
+// ── Chat archivé — accessible aux 2 participants ─────────────────────────────
+async function assertParticipant(slotId: string, userId: string) {
+  const slot = await prisma.slot.findUnique({ where: { id: slotId }, select: { creatorId: true, partnerId: true } });
+  if (!slot) return { ok: false, code: 404, error: 'Session introuvable' as const };
+  if (slot.creatorId !== userId && slot.partnerId !== userId) return { ok: false, code: 403, error: 'Non autorisé' as const };
+  return { ok: true as const };
+}
+
+// GET /api/slots/:id/messages — historique de la conversation
+router.get('/:id/messages', async (req: any, res) => {
+  const a = await assertParticipant(req.params.id, req.userId);
+  if (!a.ok) return res.status(a.code).json({ error: a.error });
+  const messages = await prisma.slotMessage.findMany({
+    where: { slotId: req.params.id },
+    include: { from: { select: { id: true, name: true, avatar: true } } },
+    orderBy: { createdAt: 'asc' },
+    take: 500,
+  });
+  res.json(messages);
+});
+
+// POST /api/slots/:id/messages — archiver un message envoyé
+router.post('/:id/messages', async (req: any, res) => {
+  const schema = z.object({
+    content:     z.string().min(1).max(2000),
+    attachments: z.any().optional(),
+  });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Message invalide' });
+  const a = await assertParticipant(req.params.id, req.userId);
+  if (!a.ok) return res.status(a.code).json({ error: a.error });
+  const msg = await prisma.slotMessage.create({
+    data: {
+      slotId: req.params.id,
+      fromId: req.userId,
+      content: parsed.data.content,
+      attachments: parsed.data.attachments ?? undefined,
+    },
+    include: { from: { select: { id: true, name: true, avatar: true } } },
+  });
+  res.status(201).json(msg);
+});
+
+// DELETE /api/slots/:id/messages — effacer l'historique (RGPD)
+router.delete('/:id/messages', async (req: any, res) => {
+  const a = await assertParticipant(req.params.id, req.userId);
+  if (!a.ok) return res.status(a.code).json({ error: a.error });
+  await prisma.slotMessage.deleteMany({ where: { slotId: req.params.id } });
+  res.json({ success: true });
+});
+
 // ── GET /api/slots/kpis — Indicateurs Body Doubling ──────────────────────────
 router.get('/kpis', async (req: any, res) => {
   const [confirmed, started, completed, noShow, usersTotal, usersWithSession, myDone, myNoShow] = await Promise.all([

@@ -6,6 +6,7 @@ import {
   Coffee, Clock, PhoneOff, Maximize, Minimize, Send,
 } from 'lucide-react';
 import api from '../lib/api';
+import { useAppStore } from '../stores/useStore';
 import { getSocket, connectSocket } from '../lib/socket';
 import { completeSession, reliability, getFavoriteIds, addFavorite, removeFavorite } from '../lib/bodyDoubling';
 
@@ -22,22 +23,53 @@ import {
 import { Track } from 'livekit-client';
 import '@livekit/components-styles';
 
-// Chat maison (design FocusBrain) — bulles, expéditeur, saisie propre
-function FbChat({ onClose }: { onClose: () => void }) {
+// Bulle de message (photo + nom + heure)
+function Bubble({ mine, name, avatar, content, time }: { mine: boolean; name: string; avatar?: string | null; content: string; time?: string }) {
+  return (
+    <div className={`flex gap-2 ${mine ? 'justify-end' : 'justify-start'}`}>
+      {!mine && (
+        <div className="w-7 h-7 rounded-full overflow-hidden bg-gray-600 flex items-center justify-center text-white text-[10px] font-black shrink-0 self-end">
+          {avatar ? <img src={avatar} className="w-full h-full object-cover" alt="" /> : (name?.[0]?.toUpperCase() || '?')}
+        </div>
+      )}
+      <div className={`max-w-[78%] rounded-2xl px-3 py-2 text-sm break-words ${mine ? 'bg-teal-500 text-white rounded-br-sm' : 'bg-gray-700 text-gray-100 rounded-bl-sm'}`}>
+        {!mine && <p className="text-[10px] font-bold opacity-70 mb-0.5">{name}</p>}
+        <p className="whitespace-pre-wrap">{content}</p>
+        {time && <p className={`text-[9px] mt-0.5 text-right ${mine ? 'text-white/60' : 'text-gray-400'}`}>{time}</p>}
+      </div>
+    </div>
+  );
+}
+
+// Chat maison (design FocusBrain) — historique archivé + temps réel
+function FbChat({ onClose, slotId }: { onClose: () => void; slotId?: string }) {
   const { chatMessages, send } = useChat();
+  const myId = useAppStore(s => s.user?.id);
   const [text, setText] = useState('');
+  const [history, setHistory] = useState<any[]>([]);
   const endRef = useRef<HTMLDivElement>(null);
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatMessages.length]);
+
+  useEffect(() => {
+    if (!slotId) return;
+    api.get(`/slots/${slotId}/messages`).then(r => setHistory(r.data || [])).catch(() => {});
+  }, [slotId]);
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatMessages.length, history.length]);
+
+  const fmtTime = (t: any) => { try { return new Date(t).toLocaleTimeString('fr', { hour: '2-digit', minute: '2-digit' }); } catch { return ''; } };
+  const nameOf = (p: any) => { try { const m = p?.metadata ? JSON.parse(p.metadata) : {}; return m.name || p?.name || p?.identity || 'Participant'; } catch { return p?.name || p?.identity || 'Participant'; } };
+  const avatarOf = (p: any) => { try { return p?.metadata ? (JSON.parse(p.metadata).avatar || null) : null; } catch { return null; } };
+
   const submit = (e: FormEvent) => {
     e.preventDefault();
     const t = text.trim();
     if (!t) return;
-    send(t); setText('');
+    send(t);                                                                   // temps réel LiveKit
+    if (slotId) api.post(`/slots/${slotId}/messages`, { content: t }).catch(() => {}); // archive en base
+    setText('');
   };
-  const nameOf = (p: any) => {
-    try { const m = p?.metadata ? JSON.parse(p.metadata) : {}; return m.name || p?.name || p?.identity || 'Participant'; }
-    catch { return p?.name || p?.identity || 'Participant'; }
-  };
+
+  const empty = history.length === 0 && chatMessages.length === 0;
+
   return (
     <div className="flex flex-col h-full" style={{ background: '#1f2430' }}>
       <div className="px-3 py-2.5 flex items-center justify-between text-white text-sm font-black border-b border-white/10 shrink-0">
@@ -45,30 +77,18 @@ function FbChat({ onClose }: { onClose: () => void }) {
         <button onClick={onClose} className="text-gray-400 hover:text-white text-lg leading-none">✕</button>
       </div>
       <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2">
-        {chatMessages.length === 0 && (
-          <p className="text-center text-xs text-gray-500 mt-6">Aucun message pour l'instant.<br />Dis bonjour 👋</p>
-        )}
-        {chatMessages.map((m, i) => {
-          const mine = (m.from as any)?.isLocal;
-          return (
-            <div key={m.id || i} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm break-words ${mine ? 'bg-teal-500 text-white rounded-br-sm' : 'bg-gray-700 text-gray-100 rounded-bl-sm'}`}>
-                {!mine && <p className="text-[10px] font-bold opacity-70 mb-0.5">{nameOf(m.from)}</p>}
-                {m.message}
-              </div>
-            </div>
-          );
-        })}
+        {empty && <p className="text-center text-xs text-gray-500 mt-6">Aucun message pour l'instant.<br />Dis bonjour 👋</p>}
+        {history.map((m: any) => (
+          <Bubble key={'h' + m.id} mine={m.from?.id === myId} name={m.from?.name || 'Participant'} avatar={m.from?.avatar} content={m.content} time={fmtTime(m.createdAt)} />
+        ))}
+        {chatMessages.map((m: any, i: number) => (
+          <Bubble key={'l' + (m.id || i)} mine={(m.from as any)?.isLocal} name={nameOf(m.from)} avatar={avatarOf(m.from)} content={m.message} time={fmtTime(m.timestamp)} />
+        ))}
         <div ref={endRef} />
       </div>
       <form onSubmit={submit} className="p-2 border-t border-white/10 flex gap-2 shrink-0">
-        <input
-          value={text}
-          onChange={e => setText(e.target.value)}
-          placeholder="Écris un message…"
-          className="flex-1 min-w-0 rounded-xl px-3 py-2 text-sm text-white outline-none border border-white/15 focus:border-teal-400"
-          style={{ background: '#2a3142' }}
-        />
+        <input value={text} onChange={e => setText(e.target.value)} placeholder="Écris un message…"
+          className="flex-1 min-w-0 rounded-xl px-3 py-2 text-sm text-white outline-none border border-white/15 focus:border-teal-400" style={{ background: '#2a3142' }} />
         <button type="submit" aria-label="Envoyer" className="bg-teal-500 hover:bg-teal-600 text-white px-3.5 rounded-xl shrink-0 flex items-center justify-center"><Send size={18} /></button>
       </form>
     </div>
@@ -141,10 +161,10 @@ function CtrlBtn({ icon, label, active = true, danger = false, onClick }: {
 
 // Corps de la salle (dans le contexte LiveKit) : grille vidéo + chat + barre de contrôle unique FR
 function RoomBody(props: {
-  partnerName?: string; chatOpen: boolean; setChatOpen: (v: boolean) => void;
+  partnerName?: string; slotId?: string; chatOpen: boolean; setChatOpen: (v: boolean) => void;
   onPause: () => void; onExtend: () => void; onLeave: () => void;
 }) {
-  const { partnerName, chatOpen, setChatOpen, onPause, onExtend, onLeave } = props;
+  const { partnerName, slotId, chatOpen, setChatOpen, onPause, onExtend, onLeave } = props;
   const mic    = useTrackToggle({ source: Track.Source.Microphone });
   const cam    = useTrackToggle({ source: Track.Source.Camera });
   const screen = useTrackToggle({ source: Track.Source.ScreenShare });
@@ -167,7 +187,7 @@ function RoomBody(props: {
         </div>
         {chatOpen && (
           <div className="w-72 shrink-0 border-l border-gray-700">
-            <FbChat onClose={() => setChatOpen(false)} />
+            <FbChat onClose={() => setChatOpen(false)} slotId={slotId} />
           </div>
         )}
       </div>
@@ -609,6 +629,7 @@ export default function LiveSession() {
 
           <RoomBody
             partnerName={slot?.partner?.name}
+            slotId={slotId}
             chatOpen={chatOpen}
             setChatOpen={setChatOpen}
             onPause={() => getSocket().emit('session:break_propose', { slotId })}
