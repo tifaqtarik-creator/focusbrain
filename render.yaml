@@ -1,0 +1,48 @@
+# Blueprint Render — backend FocusBrain + base PostgreSQL
+# Déploiement : Render.com → New → Blueprint → connecter ce dépôt.
+# Render lit ce fichier et crée automatiquement le service web + la base.
+#
+# ⚠️ À compléter manuellement après création (Dashboard Render → service → Environment) :
+#   - EXTRA_ORIGINS  : laisser l'URL GitHub Pages (déjà pré-remplie ci-dessous)
+#   - LIVEKIT_*      : si vous voulez la visio (sinon le live passe en mode fallback)
+#
+# NB : le plan gratuit Render met le service en veille après inactivité
+#      (premier appel ~30 s) et la base gratuite expire après 30 jours.
+
+databases:
+  - name: focusbrain-db
+    databaseName: focusbrain
+    plan: free
+
+services:
+  - type: web
+    name: focusbrain-api
+    runtime: node
+    rootDir: backend
+    plan: free
+    healthCheckPath: /health
+    buildCommand: npm ci && npx prisma generate && npm run build
+    startCommand: npx prisma migrate deploy && node dist/index.js
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: focusbrain-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: FRONTEND_URL
+        value: https://tifaqtarik-creator.github.io
+      - key: EXTRA_ORIGINS
+        value: https://tifaqtarik-creator.github.io
+      - key: BACKEND_URL
+        sync: false          # à remplir avec l'URL Render après le 1er déploiement
+      - key: LIVEKIT_URL
+        sync: false
+      - key: LIVEKIT_API_KEY
+        sync: false
+      - key: LIVEKIT_API_SECRET
+        sync: false

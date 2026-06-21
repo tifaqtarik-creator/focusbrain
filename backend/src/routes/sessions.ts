@@ -6,7 +6,7 @@ import { AuthRequest } from '../middleware/auth';
 const router = Router();
 
 const createSessionSchema = z.object({
-  duration: z.enum([15, 25, 50, 75] as const),
+  duration: z.number().refine(d => [15, 25, 50, 75].includes(d), 'Durée invalide'),
   quietMode: z.boolean().default(false),
   cameraOff: z.boolean().default(false),
 });

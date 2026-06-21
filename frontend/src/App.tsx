@@ -35,7 +35,7 @@ export default function App() {
   return (
     <div className={lowStim ? 'low-stim' : ''}>
       <PlannerProvider>
-      <BrowserRouter>
+      <BrowserRouter basename={import.meta.env.BASE_URL}>
         <Routes>
           <Route path="/" element={<Landing />} />
           <Route path="/register" element={<Register />} />
