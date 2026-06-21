@@ -457,8 +457,8 @@ router.get('/:id/token', async (req: any, res) => {
   const slot = await prisma.slot.findUnique({
     where: { id: req.params.id },
     include: {
-      creator: { select: { id: true, name: true } },
-      partner: { select: { id: true, name: true } },
+      creator: { select: { id: true, name: true, avatar: true, sessionsCompleted: true, sessionsNoShow: true } },
+      partner: { select: { id: true, name: true, avatar: true, sessionsCompleted: true, sessionsNoShow: true } },
     },
   });
 
@@ -471,6 +471,10 @@ router.get('/:id/token', async (req: any, res) => {
 
   const userName = isCreator ? slot.creator.name : (slot.partner?.name || 'Partenaire');
   const roomName = slot.liveRoomName || `focusbrain-${slot.id}`;
+  // « partenaire » = l'autre personne ; tâches normalisées du point de vue du viewer
+  const other       = isCreator ? slot.partner : slot.creator;
+  const myTask       = isCreator ? slot.creatorTask : slot.partnerTask;
+  const partnerTask  = isCreator ? slot.partnerTask : slot.creatorTask;
 
   // KPI : marquer la session comme lancée + 1ère session de l'utilisateur
   if (!slot.startedAt) {
@@ -490,6 +494,10 @@ router.get('/:id/token', async (req: any, res) => {
       url: null,
       roomName,
       fallback: true,
+      duration: slot.duration,
+      partner: other,
+      myTask,
+      partnerTask,
       message: 'LiveKit non configuré — configure LIVEKIT_API_KEY dans .env',
     });
   }
@@ -498,7 +506,10 @@ router.get('/:id/token', async (req: any, res) => {
     token,
     url: process.env.LIVEKIT_URL,
     roomName,
-    partner: isCreator ? slot.partner : slot.creator,
+    duration: slot.duration,
+    partner: other,
+    myTask,
+    partnerTask,
   });
 });
 
