@@ -5,6 +5,7 @@ import timeGridPlugin from '@fullcalendar/timegrid';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Eye, Pencil, Trash2 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
 import { useAppStore } from '../stores/useStore';
@@ -70,6 +71,8 @@ export default function Dashboard() {
   const [detailModal, setDetailModal] = useState<any | null>(null);
   const [editModal,   setEditModal]   = useState<any | null>(null); // slot à modifier
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null); // id slot à supprimer
+  const [cancelTarget, setCancelTarget] = useState<string | null>(null); // id session confirmée à annuler
+  const [detailSlot,  setDetailSlot]  = useState<any | null>(null); // slot dont on voit les détails
   const [duration, setDuration]       = useState(25);
   const [creatorTask,   setCreatorTask]   = useState('');
   const [candidateTask, setCandidateTask] = useState('');
@@ -90,6 +93,7 @@ export default function Dashboard() {
   const [editDuration, setEditDuration] = useState(25);
   const [editTask,     setEditTask]     = useState('');
   const [editDate,     setEditDate]     = useState('');
+  const [editDescription, setEditDescription] = useState('');
   // Favoris + KPI
   const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
   const [kpis, setKpis]               = useState<any>(null);
@@ -230,6 +234,7 @@ export default function Dashboard() {
     setEditModal(slot);
     setEditDuration(slot.duration);
     setEditTask(slot.creatorTask || '');
+    setEditDescription(slot.description || '');
     const d = new Date(slot.startTime);
     // Format datetime-local : YYYY-MM-DDThh:mm
     const pad = (n: number) => String(n).padStart(2, '0');
@@ -310,18 +315,25 @@ export default function Dashboard() {
                 return (
                   <motion.div key={s.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
                     className="bg-teal-50 border border-teal-200 rounded-xl p-3 mb-2">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="w-8 h-8 bg-teal-500 rounded-full flex items-center justify-center text-white text-xs font-black">
-                        {partner?.name?.[0]?.toUpperCase() || '?'}
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-8 h-8 bg-teal-500 rounded-full flex items-center justify-center text-white text-xs font-black shrink-0 overflow-hidden">
+                          {partner?.avatar ? <img src={partner.avatar} className="w-full h-full object-cover" /> : (partner?.name?.[0]?.toUpperCase() || '?')}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-bold text-sm text-gray-900 truncate">{partner?.name || 'Partenaire'}</p>
+                          <p className="text-xs text-gray-500">
+                            {start.toLocaleDateString('fr', { weekday: 'short', day: 'numeric' })}
+                            {' · '}
+                            {start.toLocaleTimeString('fr', { hour: '2-digit', minute: '2-digit' })}
+                            {' · '}{s.duration}min
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-bold text-sm text-gray-900">{partner?.name || 'Partenaire'}</p>
-                        <p className="text-xs text-gray-500">
-                          {start.toLocaleDateString('fr', { weekday: 'short', day: 'numeric' })}
-                          {' · '}
-                          {start.toLocaleTimeString('fr', { hour: '2-digit', minute: '2-digit' })}
-                          {' · '}{s.duration}min
-                        </p>
+                      <div className="flex items-center gap-0.5 shrink-0">
+                        <button onClick={() => setDetailSlot(s)} title="Détails" className="p-1.5 text-gray-400 hover:text-teal-600 hover:bg-teal-100 rounded-lg transition-colors"><Eye size={15} /></button>
+                        <button onClick={() => openEditModal(s)} title="Modifier" className="p-1.5 text-gray-400 hover:text-teal-600 hover:bg-teal-100 rounded-lg transition-colors"><Pencil size={15} /></button>
+                        <button onClick={() => setCancelTarget(s.id)} title="Annuler la session" className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={15} /></button>
                       </div>
                     </div>
                     {/* Fiabilité + favori + agenda */}
@@ -370,27 +382,14 @@ export default function Dashboard() {
                           {new Date(s.startTime).toLocaleDateString('fr', { weekday: 'short', day: 'numeric', month: 'short' })}
                         </p>
                       </div>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-0.5">
                         <StatusBadge status={s.status} />
-                        {/* Boutons modifier/supprimer — seulement si pas encore confirmé */}
-                        {s.status !== 'CONFIRMED' && (
-                          <>
-                            <button
-                              onClick={() => openEditModal(s)}
-                              title="Modifier"
-                              className="p-1.5 text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-colors"
-                            >
-                              ✏️
-                            </button>
-                            <button
-                              onClick={() => setDeleteTarget(s.id)}
-                              title="Supprimer"
-                              className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                            >
-                              🗑️
-                            </button>
-                          </>
-                        )}
+                        <button onClick={() => setDetailSlot(s)} title="Détails"
+                          className="p-1.5 text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-colors"><Eye size={15} /></button>
+                        <button onClick={() => openEditModal(s)} title="Modifier"
+                          className="p-1.5 text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-colors"><Pencil size={15} /></button>
+                        <button onClick={() => setDeleteTarget(s.id)} title="Supprimer"
+                          className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={15} /></button>
                       </div>
                     </div>
 
@@ -750,8 +749,8 @@ export default function Dashboard() {
             <motion.div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl"
               initial={{ scale: 0.95, y: 10 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95 }}
               onClick={e => e.stopPropagation()}>
-              <h3 className="font-black text-gray-900 text-xl mb-1">✏️ Modifier le créneau</h3>
-              <p className="text-xs text-gray-400 mb-5">Les candidats seront notifiés du changement</p>
+              <h3 className="font-black text-gray-900 text-xl mb-1">✏️ Modifier la session</h3>
+              <p className="text-xs text-gray-400 mb-5">{editModal?.status === 'CONFIRMED' ? 'Ton partenaire sera notifié du changement.' : 'Les candidats seront notifiés du changement.'}</p>
 
               {/* Nouvelle date/heure */}
               <p className="text-sm font-bold text-gray-700 mb-2">📅 Date et heure</p>
@@ -784,7 +783,19 @@ export default function Dashboard() {
                 onChange={e => setEditTask(e.target.value)}
                 placeholder="Sur quoi vas-tu travailler ?"
                 maxLength={200}
-                className="w-full border-2 border-gray-200 focus:border-teal-400 rounded-xl px-4 py-2.5 text-sm outline-none mb-5"
+                className="w-full border-2 border-gray-200 focus:border-teal-400 rounded-xl px-4 py-2.5 text-sm outline-none mb-4"
+              />
+
+              {/* Description */}
+              <p className="text-sm font-bold text-gray-700 mb-2">
+                📝 Description <span className="font-normal text-gray-400">(optionnel)</span>
+              </p>
+              <textarea
+                value={editDescription}
+                onChange={e => setEditDescription(e.target.value.slice(0, 500))}
+                placeholder="Contexte, objectif, ambiance souhaitée..."
+                rows={2}
+                className="w-full border-2 border-gray-200 focus:border-teal-400 rounded-xl px-4 py-2.5 text-sm outline-none mb-5 resize-none"
               />
 
               <div className="flex gap-3">
@@ -799,6 +810,7 @@ export default function Dashboard() {
                       startTime:   editDate ? new Date(editDate).toISOString() : undefined,
                       duration:    editDuration,
                       creatorTask: editTask.trim() || null,
+                      description: editDescription.trim() || null,
                     },
                   })}
                   disabled={editSlot.isPending}
@@ -842,6 +854,113 @@ export default function Dashboard() {
             </motion.div>
           </motion.div>
         )}
+      </AnimatePresence>
+
+      {/* ── MODAL — ANNULER UNE SESSION CONFIRMÉE ─────────────────────────────── */}
+      <AnimatePresence>
+        {cancelTarget && (
+          <motion.div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={() => setCancelTarget(null)}>
+            <motion.div className="bg-white rounded-2xl p-6 w-full max-w-xs shadow-xl text-center"
+              initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }}
+              onClick={e => e.stopPropagation()}>
+              <p className="text-4xl mb-3">🚫</p>
+              <h3 className="font-black text-gray-900 text-lg mb-2">Annuler cette session ?</h3>
+              <p className="text-gray-400 text-sm mb-6">Ton partenaire sera prévenu de l'annulation.</p>
+              <div className="flex gap-3">
+                <button onClick={() => setCancelTarget(null)}
+                  className="flex-1 border-2 border-gray-200 text-gray-600 font-bold py-3 rounded-xl text-sm hover:bg-gray-50">
+                  Retour
+                </button>
+                <button
+                  onClick={() => cancelSlot.mutate(cancelTarget, { onSuccess: () => setCancelTarget(null) })}
+                  disabled={cancelSlot.isPending}
+                  className="flex-1 bg-red-500 hover:bg-red-600 disabled:opacity-40 text-white font-black py-3 rounded-xl text-sm"
+                >
+                  {cancelSlot.isPending ? '⏳...' : 'Annuler la session'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── MODAL — DÉTAILS D'UNE SESSION ─────────────────────────────────────── */}
+      <AnimatePresence>
+        {detailSlot && (() => {
+          const s = detailSlot;
+          const start = new Date(s.startTime);
+          const partner = s.creatorId === user?.id ? s.partner : s.creator;
+          const typeLabel = s.type === 'INSTANT' ? '⚡ Instantanée' : s.type === 'RECURRING' ? '🔁 Récurrente' : '📅 Planifiée';
+          return (
+            <motion.div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setDetailSlot(null)}>
+              <motion.div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto"
+                initial={{ scale: 0.95, y: 10 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95 }}
+                onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-black text-gray-900 text-xl">Détails de la session</h3>
+                  <StatusBadge status={s.status} />
+                </div>
+
+                <div className="space-y-2 text-sm text-gray-700 mb-4">
+                  <p>📅 <strong>{start.toLocaleDateString('fr', { weekday: 'long', day: 'numeric', month: 'long' })}</strong> à {start.toLocaleTimeString('fr', { hour: '2-digit', minute: '2-digit' })}</p>
+                  <p>⏱️ Durée : <strong>{s.duration} min</strong> · {typeLabel}</p>
+                  {metaLabel(s) && <p className="text-gray-500">{metaLabel(s)}</p>}
+                </div>
+
+                {slotTasks(s).length > 0 && (
+                  <div className="mb-4">
+                    <p className="text-xs font-bold text-gray-400 uppercase mb-1">🎯 Tâches</p>
+                    <div className="space-y-1">
+                      {slotTasks(s).map((t: string, i: number) => (
+                        <p key={i} className="text-sm text-teal-700 bg-teal-50 rounded-lg px-2 py-1">{t}</p>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {s.description && (
+                  <div className="mb-4">
+                    <p className="text-xs font-bold text-gray-400 uppercase mb-1">📝 Description</p>
+                    <p className="text-sm text-gray-600 bg-gray-50 rounded-lg px-3 py-2 whitespace-pre-wrap">{s.description}</p>
+                  </div>
+                )}
+
+                {s.status === 'CONFIRMED' && partner && (
+                  <div className="mb-4 flex items-center gap-2 bg-teal-50 rounded-xl px-3 py-2">
+                    <div className="w-9 h-9 rounded-full bg-teal-500 overflow-hidden flex items-center justify-center text-white font-black shrink-0">
+                      {partner.avatar ? <img src={partner.avatar} className="w-full h-full object-cover" /> : (partner.name?.[0]?.toUpperCase() || '?')}
+                    </div>
+                    <div>
+                      <p className="font-bold text-sm text-gray-900">{partner.name}</p>
+                      <p className="text-xs text-gray-500">{reliability(partner).emoji} {reliability(partner).label}</p>
+                    </div>
+                  </div>
+                )}
+
+                {s.status === 'PENDING' && (s.requests?.length || 0) > 0 && (
+                  <p className="text-sm text-amber-700 bg-amber-50 rounded-lg px-3 py-2 mb-4">
+                    ⏳ {s.requests.length} candidat{s.requests.length > 1 ? 's' : ''} en attente — choisis ton partenaire sur la carte.
+                  </p>
+                )}
+
+                <div className="flex gap-2">
+                  {s.status === 'CONFIRMED' && (
+                    <button onClick={() => { setDetailSlot(null); navigate(`/live/${s.id}`); }}
+                      className="flex-1 bg-teal-500 hover:bg-teal-600 text-white font-black py-2.5 rounded-xl text-sm">🎥 Rejoindre</button>
+                  )}
+                  <button onClick={() => { setDetailSlot(null); openEditModal(s); }}
+                    className="flex-1 border-2 border-gray-200 text-gray-600 font-bold py-2.5 rounded-xl text-sm hover:bg-gray-50 flex items-center justify-center gap-1"><Pencil size={14} /> Modifier</button>
+                  <button onClick={() => { const id = s.id; const conf = s.status === 'CONFIRMED'; setDetailSlot(null); conf ? setCancelTarget(id) : setDeleteTarget(id); }}
+                    className="flex-1 border-2 border-red-100 text-red-500 font-bold py-2.5 rounded-xl text-sm hover:bg-red-50 flex items-center justify-center gap-1"><Trash2 size={14} /> {s.status === 'CONFIRMED' ? 'Annuler' : 'Supprimer'}</button>
+                </div>
+              </motion.div>
+            </motion.div>
+          );
+        })()}
       </AnimatePresence>
 
       {/* ── MODAL — REJOINDRE ─────────────────────────────────────────────────── */}

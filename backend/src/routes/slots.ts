@@ -238,16 +238,24 @@ router.patch('/:id', async (req: any, res) => {
   const slot = await prisma.slot.findUnique({ where: { id: req.params.id } });
   if (!slot)                        return res.status(404).json({ error: 'Créneau introuvable' });
   if (slot.creatorId !== req.userId) return res.status(403).json({ error: 'Non autorisé' });
-  if (slot.status === 'CONFIRMED')   return res.status(400).json({ error: 'Impossible de modifier un créneau confirmé' });
+  // NB : on autorise l'édition d'une session CONFIRMÉE → le partenaire est notifié.
 
   const schema = z.object({
     startTime:   z.string().datetime().optional(),
     duration:    z.number().refine(d => [15, 25, 50, 75].includes(d)).optional(),
     creatorTask: z.string().max(200).nullable().optional(),
     description: z.string().max(500).nullable().optional(),
+    tasks:       z.array(z.string().max(200)).max(8).optional(),
+    category:    z.string().max(40).nullable().optional(),
+    ambiance:    z.string().max(40).nullable().optional(),
+    energy:      z.string().max(20).nullable().optional(),
   });
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Données invalides' });
+
+  const tasks = parsed.data.tasks
+    ? parsed.data.tasks.map(t => t.trim()).filter(Boolean).slice(0, 8)
+    : undefined;
 
   const updated = await prisma.slot.update({
     where: { id: req.params.id },
@@ -256,13 +264,28 @@ router.patch('/:id', async (req: any, res) => {
       ...(parsed.data.duration    && { duration: parsed.data.duration }),
       ...(parsed.data.creatorTask !== undefined && { creatorTask: parsed.data.creatorTask }),
       ...(parsed.data.description !== undefined && { description: parsed.data.description }),
+      ...(tasks !== undefined && { creatorTasks: tasks, creatorTask: tasks[0] || null }),
+      ...(parsed.data.category !== undefined && { category: parsed.data.category }),
+      ...(parsed.data.ambiance !== undefined && { ambiance: parsed.data.ambiance }),
+      ...(parsed.data.energy   !== undefined && { energy: parsed.data.energy }),
     },
-    include: { creator: { select: { id: true, name: true, avatar: true } } },
+    include: {
+      creator: { select: { id: true, name: true, avatar: true } },
+      partner: { select: { id: true, name: true, avatar: true } },
+    },
   });
 
-  // Notifier les candidats de la modification
+  // Rafraîchir tout le monde + notifier le partenaire de la modification
   const io = req.app.get('io');
-  if (io) io.emit('slot:updated', updated);
+  if (io) {
+    io.emit('slot:updated', updated);
+    if (slot.partnerId) {
+      io.to(`user:${slot.partnerId}`).emit('slot:modified', {
+        slotId: slot.id,
+        message: 'Ta session a été modifiée par le créateur.',
+      });
+    }
+  }
 
   res.json(updated);
 });
@@ -448,7 +471,16 @@ router.post('/:id/cancel', async (req: any, res) => {
   });
 
   const io = req.app.get('io');
-  if (io) io.emit('slot:cancelled', { slotId: slot.id });
+  if (io) {
+    io.emit('slot:cancelled', { slotId: slot.id });
+    // Notifier le partenaire (session déjà confirmée)
+    if (slot.partnerId) {
+      io.to(`user:${slot.partnerId}`).emit('slot:cancelled', {
+        slotId: slot.id,
+        message: 'La session a été annulée par le créateur.',
+      });
+    }
+  }
 
   res.json({ message: 'Créneau annulé' });
 });
