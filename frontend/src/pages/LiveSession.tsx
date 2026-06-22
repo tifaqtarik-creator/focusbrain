@@ -156,12 +156,15 @@ function FbTile({ trackRef, onClick, compact, focused }: { trackRef: any; onClic
   const isVideoSource = trackRef.source === Track.Source.Camera || isScreen;
   const pub = trackRef.publication;
   const showVideo = isVideoSource && pub && !pub.isMuted && pub.track;
+  const isLocal = !!(p as any)?.isLocal;
+  // Miroir UNIQUEMENT sur ma propre caméra (self-view naturelle). Partenaire + écran : sens réel (texte lisible).
+  const mirror = isLocal && !isScreen;
   const avatarSize = compact ? 'w-10 h-10 text-base' : 'w-24 h-24 text-4xl';
   return (
     <div onClick={onClick}
       className={`relative bg-gray-800 rounded-2xl overflow-hidden flex items-center justify-center min-h-0 h-full w-full ${onClick ? 'cursor-pointer hover:ring-2 hover:ring-teal-400/60' : ''} ${focused ? 'ring-2 ring-teal-500' : ''}`}>
       {showVideo
-        ? <VideoTrack trackRef={trackRef} className={`w-full h-full ${isScreen ? 'object-contain bg-black' : 'object-cover'}`} />
+        ? <VideoTrack trackRef={trackRef} className={`w-full h-full ${isScreen ? 'object-contain bg-black' : 'object-cover'} ${mirror ? '-scale-x-100' : ''}`} />
         : (
           <div className="flex flex-col items-center gap-2 p-2">
             <div className={`${avatarSize} rounded-full overflow-hidden bg-teal-600 flex items-center justify-center text-white font-black`}>
