@@ -398,6 +398,9 @@ export default function LiveSession() {
   const [paused, setPaused] = useState(false);
   const pausedRef = useRef(false);
   useEffect(() => { pausedRef.current = paused; }, [paused]);
+  const [pauseRequest, setPauseRequest]   = useState(false);  // le partenaire propose une pause
+  const [extendRequest, setExtendRequest] = useState(false);  // le partenaire propose +10 min
+  const [requestSent, setRequestSent]     = useState<string | null>(null); // feedback "demande envoyée"
   const [partnerTask, setPartnerTask] = useState('');
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -439,9 +442,13 @@ export default function LiveSession() {
 
     const socket = getSocket();
     connectSocket(); // s'assurer que le temps réel est actif (prêt/lancement)
-    socket.on('session:paused',   () => setPaused(true));
+    socket.on('session:pause_requested',  () => setPauseRequest(true));
+    socket.on('session:pause_declined',   () => { setRequestSent('Pause refusée'); setTimeout(() => setRequestSent(null), 3000); });
+    socket.on('session:paused',   () => { setPaused(true); setPauseRequest(false); setRequestSent(null); });
     socket.on('session:resumed',  () => setPaused(false));
-    socket.on('session:extended', () => setTimeLeft(t => t + 600));
+    socket.on('session:extend_requested', () => setExtendRequest(true));
+    socket.on('session:extend_declined',  () => { setRequestSent('+10 min refusé'); setTimeout(() => setRequestSent(null), 3000); });
+    socket.on('session:extended', () => { setTimeLeft(t => t + 600); setExtendRequest(false); setRequestSent(null); });
     socket.on('session:partner_task', ({ task: t }: any) => setPartnerTask(t));
     socket.on('session:partner_ready', ({ ready }: any) => setPartnerReady(!!ready));
     socket.on('session:launch', ({ at }: any) => {
@@ -450,8 +457,12 @@ export default function LiveSession() {
     });
 
     return () => {
+      socket.off('session:pause_requested');
+      socket.off('session:pause_declined');
       socket.off('session:paused');
       socket.off('session:resumed');
+      socket.off('session:extend_requested');
+      socket.off('session:extend_declined');
       socket.off('session:extended');
       socket.off('session:partner_task');
       socket.off('session:partner_ready');
@@ -514,6 +525,20 @@ export default function LiveSession() {
     setPhase('done');
     setShowFeedback(true);
   };
+
+  // ── Pause / +10 min : demande → acceptation par le partenaire ──
+  const requestExtend = () => {
+    getSocket().emit('session:extend_request', { slotId });
+    setRequestSent('Demande +10 min envoyée…'); setTimeout(() => setRequestSent(null), 5000);
+  };
+  const acceptExtend  = () => { setTimeLeft(t => t + 600); getSocket().emit('session:extend_accept', { slotId }); setExtendRequest(false); };
+  const declineExtend = () => { getSocket().emit('session:extend_decline', { slotId }); setExtendRequest(false); };
+  const togglePause = () => {
+    if (paused) { setPaused(false); getSocket().emit('session:resume', { slotId }); }
+    else { getSocket().emit('session:pause_request', { slotId }); setRequestSent('Demande de pause envoyée…'); setTimeout(() => setRequestSent(null), 5000); }
+  };
+  const acceptPause  = () => { setPaused(true); getSocket().emit('session:pause_accept', { slotId }); setPauseRequest(false); };
+  const declinePause = () => { getSocket().emit('session:pause_decline', { slotId }); setPauseRequest(false); };
 
   // Favori partenaire (depuis la salle)
   const toggleFavorite = async () => {
@@ -780,11 +805,35 @@ export default function LiveSession() {
           }}
           className="flex-1 min-h-0 flex flex-col"
         >
-          {/* Bandeau : session en pause */}
+          {/* Bandeaux : demandes de pause / +10 min (accepter/refuser) + feedback + pause active */}
           <AnimatePresence>
+            {pauseRequest && (
+              <motion.div key="pr" initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                className="shrink-0 bg-amber-500 text-white text-xs font-bold px-4 py-2 flex items-center justify-center gap-3">
+                ☕ {slot?.partner?.name || 'Ton partenaire'} propose une pause
+                <span className="flex gap-2">
+                  <button onClick={acceptPause} className="bg-white text-amber-600 px-2 py-0.5 rounded-lg">Accepter</button>
+                  <button onClick={declinePause} className="bg-amber-700/50 text-white px-2 py-0.5 rounded-lg">Refuser</button>
+                </span>
+              </motion.div>
+            )}
+            {extendRequest && (
+              <motion.div key="er" initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                className="shrink-0 bg-teal-600 text-white text-xs font-bold px-4 py-2 flex items-center justify-center gap-3">
+                ⏱️ {slot?.partner?.name || 'Ton partenaire'} propose +10 min
+                <span className="flex gap-2">
+                  <button onClick={acceptExtend} className="bg-white text-teal-700 px-2 py-0.5 rounded-lg">Accepter</button>
+                  <button onClick={declineExtend} className="bg-teal-800/50 text-white px-2 py-0.5 rounded-lg">Refuser</button>
+                </span>
+              </motion.div>
+            )}
+            {requestSent && !pauseRequest && !extendRequest && (
+              <motion.div key="rs" initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                className="shrink-0 bg-gray-700 text-white text-xs font-bold px-4 py-2 text-center">⏳ {requestSent}</motion.div>
+            )}
             {paused && (
-              <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-                className="shrink-0 bg-amber-500 text-white text-xs font-bold px-4 py-2 flex items-center justify-center gap-2">
+              <motion.div key="pz" initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                className="shrink-0 bg-amber-500 text-white text-xs font-bold px-4 py-2 text-center">
                 ⏸ Session en pause — le minuteur est arrêté pour vous deux
               </motion.div>
             )}
@@ -796,8 +845,8 @@ export default function LiveSession() {
             chatOpen={chatOpen}
             setChatOpen={setChatOpen}
             paused={paused}
-            onPause={() => { const next = !paused; setPaused(next); getSocket().emit(next ? 'session:pause' : 'session:resume', { slotId }); }}
-            onExtend={() => { setTimeLeft(t => t + 600); getSocket().emit('session:extend', { slotId }); }}
+            onPause={togglePause}
+            onExtend={requestExtend}
             onLeave={leave}
           />
           <RoomAudioRenderer />

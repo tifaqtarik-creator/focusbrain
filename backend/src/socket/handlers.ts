@@ -115,9 +115,15 @@ export function registerSocketHandlers(io: Server) {
       if (s.creatorId !== userId && s.partnerId !== userId) return null;
       return s.creatorId === userId ? s.partnerId : s.creatorId;
     };
-    socket.on('session:pause',      async (d: { slotId: string }) => { const o = await partnerOf(d.slotId); if (o) io.to(`user:${o}`).emit('session:paused'); });
-    socket.on('session:resume',     async (d: { slotId: string }) => { const o = await partnerOf(d.slotId); if (o) io.to(`user:${o}`).emit('session:resumed'); });
-    socket.on('session:extend',     async (d: { slotId: string }) => { const o = await partnerOf(d.slotId); if (o) io.to(`user:${o}`).emit('session:extended'); });
+    // Pause : demande → acceptation/refus (la reprise est immédiate des 2 côtés)
+    socket.on('session:pause_request', async (d: { slotId: string }) => { const o = await partnerOf(d.slotId); if (o) io.to(`user:${o}`).emit('session:pause_requested'); });
+    socket.on('session:pause_accept',  async (d: { slotId: string }) => { const o = await partnerOf(d.slotId); if (o) io.to(`user:${o}`).emit('session:paused'); });
+    socket.on('session:pause_decline', async (d: { slotId: string }) => { const o = await partnerOf(d.slotId); if (o) io.to(`user:${o}`).emit('session:pause_declined'); });
+    socket.on('session:resume',        async (d: { slotId: string }) => { const o = await partnerOf(d.slotId); if (o) io.to(`user:${o}`).emit('session:resumed'); });
+    // +10 min : demande → acceptation/refus
+    socket.on('session:extend_request', async (d: { slotId: string }) => { const o = await partnerOf(d.slotId); if (o) io.to(`user:${o}`).emit('session:extend_requested'); });
+    socket.on('session:extend_accept',  async (d: { slotId: string }) => { const o = await partnerOf(d.slotId); if (o) io.to(`user:${o}`).emit('session:extended'); });
+    socket.on('session:extend_decline', async (d: { slotId: string }) => { const o = await partnerOf(d.slotId); if (o) io.to(`user:${o}`).emit('session:extend_declined'); });
     socket.on('session:share_task', async (d: { slotId: string; task: string }) => { const o = await partnerOf(d.slotId); if (o) io.to(`user:${o}`).emit('session:partner_task', { task: d.task }); });
 
     // ── Démarrage synchronisé & anticipé d'un créneau confirmé ──
