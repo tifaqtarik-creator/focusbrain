@@ -12,20 +12,20 @@
   font-weight: 800;
 }
 .fc .fc-button {
-  background-color: #5DCAA5 !important;
-  border-color: #5DCAA5 !important;
+  background-color: #2E9D89 !important;
+  border-color: #2E9D89 !important;
   border-radius: 8px !important;
   font-weight: 700 !important;
   font-size: 13px !important;
 }
 .fc .fc-button:hover {
-  background-color: #0D9488 !important;
+  background-color: #196D5F !important;
 }
 .fc .fc-button-active {
-  background-color: #0D9488 !important;
+  background-color: #196D5F !important;
 }
 .fc .fc-timegrid-now-indicator-line {
-  border-color: #EF9F27 !important;
+  border-color: #DB9A45 !important;
   border-width: 2px !important;
 }
 .fc .fc-event {
@@ -47,9 +47,9 @@
 
 @layer base {
   :root {
-    --color-teal: #5DCAA5;
-    --color-violet: #7F77DD;
-    --color-amber: #EF9F27;
+    --color-teal: #2E9D89;
+    --color-violet: #7077B0;
+    --color-amber: #DB9A45;
   }
 
   * {
@@ -57,15 +57,22 @@
   }
 
   html {
-    font-family: 'Nunito', sans-serif;
+    font-family: 'DM Sans', 'Nunito', sans-serif;
     font-size: 16px;
-    line-height: 1.7;
+    line-height: 1.65;
     -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
 
   body {
-    @apply bg-white text-gray-900;
+    @apply text-ink-700;
+    background: #F5F8F7;
     min-height: 100vh;
+  }
+
+  h1, h2, h3, h4 {
+    @apply text-ink-900;
+    letter-spacing: -0.01em;
   }
 
   /* ADAH AI — Focus Mode : masque les distractions périphériques */
