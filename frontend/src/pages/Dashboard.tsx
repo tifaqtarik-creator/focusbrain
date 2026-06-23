@@ -569,7 +569,18 @@ export default function Dashboard() {
               headerToolbar={{
                 left: 'prev,next today',
                 center: 'title',
-                right: 'timeGridDay,timeGridWeek,dayGridMonth',
+                right: 'timeGridDay,timeGrid2,timeGrid3,timeGrid4,timeGrid5,timeGrid6,timeGridWeek,dayGridMonth',
+              }}
+              // Vues personnalisées : 1 à 6 jours (multi-jours à partir du jour affiché), + semaine + mois
+              views={{
+                timeGridDay:   { buttonText: '1j' },
+                timeGrid2:     { type: 'timeGrid', duration: { days: 2 }, buttonText: '2j' },
+                timeGrid3:     { type: 'timeGrid', duration: { days: 3 }, buttonText: '3j' },
+                timeGrid4:     { type: 'timeGrid', duration: { days: 4 }, buttonText: '4j' },
+                timeGrid5:     { type: 'timeGrid', duration: { days: 5 }, buttonText: '5j' },
+                timeGrid6:     { type: 'timeGrid', duration: { days: 6 }, buttonText: '6j' },
+                timeGridWeek:  { buttonText: 'Sem.' },
+                dayGridMonth:  { buttonText: 'Mois' },
               }}
               slotMinTime="00:00:00"
               slotMaxTime="24:00:00"
