@@ -438,7 +438,19 @@ export default function LiveSession() {
         } else {
           setLivekitToken(res.data.token);
           setLivekitUrl(res.data.url);
-          setPhase('checkin');
+          // Session instantanée : les deux partenaires se sont DÉJÀ acceptés mutuellement
+          // → pas d'étape « Prêt(e) à commencer ? », on lance la vidéo directement.
+          if (res.data.type === 'INSTANT') {
+            if (res.data.myTask) {
+              setTask(res.data.myTask);
+              getSocket().emit('session:share_task', { slotId, task: res.data.myTask });
+            }
+            setTaskSet(true);
+            setPhase('live');
+            if (res.data.duration) startTimer(res.data.duration);
+          } else {
+            setPhase('checkin');
+          }
         }
       })
       .catch(() => navigate('/dashboard'));
