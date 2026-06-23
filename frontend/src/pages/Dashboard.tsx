@@ -17,6 +17,7 @@ import { useAppStore } from '../stores/useStore';
 import { useSlotStore } from '../stores/useSlotStore';
 import { useI18n } from '../lib/i18n';
 import SlotNotifications from '../components/slots/SlotNotifications';
+import InstantMatch, { InstantIntent } from '../components/slots/InstantMatch';
 import { getSocket } from '../lib/socket';
 import {
   reliability, getFavoriteIds, addFavorite, removeFavorite,
@@ -96,6 +97,8 @@ export default function Dashboard() {
   const [recFreq,     setRecFreq]     = useState<'DAILY' | 'WEEKLY'>('WEEKLY');
   const [recDays,     setRecDays]     = useState<number[]>([]);
   const [recCount,    setRecCount]    = useState(4);
+  // Matching instantané (overlay carte partenaire)
+  const [instantIntent, setInstantIntent] = useState<InstantIntent | null>(null);
   // Date / heure précises de démarrage (édit. dans la modal de création)
   const [createDate, setCreateDate] = useState(''); // YYYY-MM-DD
   const [createTime, setCreateTime] = useState(''); // HH:mm
@@ -206,6 +209,28 @@ export default function Dashboard() {
       setSlotType('SCHEDULED'); setRecFreq('WEEKLY'); setRecDays([]); setRecCount(4);
     },
   });
+
+  // Soumission du modal Créer : INSTANT → matching temps réel (overlay), sinon création de créneau
+  const submitCreate = () => {
+    const tasks = [...taskList, creatorTask.trim()].filter(Boolean);
+    if (slotType === 'INSTANT') {
+      setInstantIntent({ duration, category: slotCategory, ambiance, energy, tasks });
+      setCreateModal(null);
+      return;
+    }
+    createSlot.mutate({
+      type: slotType,
+      startTime: createStart().toISOString(),
+      duration,
+      tasks,
+      category: slotCategory,
+      ambiance,
+      energy,
+      ...(slotType === 'RECURRING' && {
+        recurrence: { freq: recFreq, days: recFreq === 'WEEKLY' ? recDays : undefined, count: recCount },
+      }),
+    });
+  };
 
   const requestSlot = useMutation({
     mutationFn: ({ slotId, task }: { slotId: string; task?: string }) =>
@@ -776,18 +801,7 @@ export default function Dashboard() {
               </div>
 
               <button
-                onClick={() => createSlot.mutate({
-                  type: slotType,
-                  ...(slotType !== 'INSTANT' && { startTime: createStart().toISOString() }),
-                  duration,
-                  tasks: [...taskList, creatorTask.trim()].filter(Boolean),
-                  category: slotCategory,
-                  ambiance,
-                  energy,
-                  ...(slotType === 'RECURRING' && {
-                    recurrence: { freq: recFreq, days: recFreq === 'WEEKLY' ? recDays : undefined, count: recCount },
-                  }),
-                })}
+                onClick={submitCreate}
                 disabled={createSlot.isPending || (slotType !== 'INSTANT' && (!createDate || !createTime || createStart().getTime() < Date.now()))}
                 className="w-full bg-teal-500 text-white font-black py-4 rounded-xl hover:bg-teal-600 transition-colors disabled:opacity-50 text-base"
               >
@@ -803,6 +817,25 @@ export default function Dashboard() {
               )}
             </motion.div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── OVERLAY — MATCHING INSTANTANÉ (carte partenaire + Accepter/Refuser) ── */}
+      <AnimatePresence>
+        {instantIntent && (
+          <InstantMatch
+            intent={instantIntent}
+            onClose={() => {
+              setInstantIntent(null);
+              setCreatorTask(''); setTaskList([]); setSlotCategory('travail');
+              setAmbiance('silence'); setEnergy('moyen'); setSlotType('SCHEDULED');
+            }}
+            onMatched={(slotId) => {
+              setInstantIntent(null);
+              setCreatorTask(''); setTaskList([]);
+              navigate(`/live/${slotId}`);
+            }}
+          />
         )}
       </AnimatePresence>
 

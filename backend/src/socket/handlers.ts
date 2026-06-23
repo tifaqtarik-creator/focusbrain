@@ -28,6 +28,26 @@ const focusRooms = new Map<string, Map<string, FocusParticipant>>();
 // Démarrage synchronisé : slotId → set des userId déclarés « prêts »
 const readyBySlot = new Map<string, Set<string>>();
 
+// ── Matching INSTANTANÉ « hybride » ──────────────────────────────────────────
+// File temps réel → quand deux personnes attendent (même durée), on leur propose
+// la carte de l'autre (photo + infos). Double accord → Slot CONFIRMED → salle live.
+interface InstantSeeker {
+  userId: string; socketId: string; duration: number;
+  category?: string; ambiance?: string; energy?: string; tasks: string[];
+  name: string; avatar: string | null; tdahType?: string; workStyle?: string;
+  sessionsCompleted: number; sessionsNoShow: number; preferredLanguages: string[];
+  passed: Set<string>; // partenaires déjà refusés/expirés → ne pas re-proposer tout de suite
+}
+interface InstantProposal {
+  creatorId: string; partnerId: string;        // creatorId = celui qui attendait en 1er
+  accepts: Set<string>;
+  seekers: Record<string, InstantSeeker>;
+  timer: ReturnType<typeof setTimeout>;
+}
+const instantQueue: InstantSeeker[] = [];
+const proposalByUser = new Map<string, InstantProposal>();
+const PROPOSAL_TTL_MS = 15_000;
+
 export function registerSocketHandlers(io: Server) {
   io.use((socket, next) => {
     const token = socket.handshake.auth.token;
@@ -102,6 +122,31 @@ export function registerSocketHandlers(io: Server) {
       const idx = waitingQueue.findIndex(u => u.userId === userId);
       if (idx !== -1) waitingQueue.splice(idx, 1);
     });
+
+    // ── Matching INSTANTANÉ « hybride » : recherche → proposition → double accord ──
+    socket.on('instant:search', async (data: { duration: number; category?: string; ambiance?: string; energy?: string; tasks?: string[] }) => {
+      if (proposalByUser.has(userId)) return;   // déjà en proposition
+      removeInstant(userId);                     // un seul intent actif
+      const u = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { name: true, avatar: true, tdahType: true, workStyle: true, sessionsCompleted: true, sessionsNoShow: true, preferredLanguages: true },
+      });
+      const seeker: InstantSeeker = {
+        userId, socketId: socket.id,
+        duration: data.duration,
+        category: data.category, ambiance: data.ambiance, energy: data.energy,
+        tasks: (data.tasks || []).map(t => t.trim()).filter(Boolean).slice(0, 8),
+        name: u?.name || 'Membre', avatar: u?.avatar || null,
+        tdahType: u?.tdahType ?? undefined, workStyle: u?.workStyle ?? undefined,
+        sessionsCompleted: u?.sessionsCompleted ?? 0, sessionsNoShow: u?.sessionsNoShow ?? 0,
+        preferredLanguages: u?.preferredLanguages ?? [],
+        passed: new Set<string>(),
+      };
+      enqueueInstant(io, seeker);
+    });
+    socket.on('instant:accept',  () => acceptInstant(io, userId));
+    socket.on('instant:decline', () => declineInstant(io, userId));
+    socket.on('instant:cancel',  () => cancelInstant(io, userId));
 
     // Session events
     socket.on('session:mood_share', (data: { sessionId: string; mood: string }) => {
@@ -213,6 +258,8 @@ export function registerSocketHandlers(io: Server) {
     socket.on('disconnect', () => {
       const idx = waitingQueue.findIndex(u => u.userId === userId);
       if (idx !== -1) waitingQueue.splice(idx, 1);
+      // Nettoyer le matching instantané (file + proposition en cours)
+      cancelInstant(io, userId);
       // Nettoyer l'état « prêt » des démarrages synchronisés
       for (const [slotId, set] of readyBySlot) {
         if (set.delete(userId) && set.size === 0) readyBySlot.delete(slotId);
@@ -226,6 +273,125 @@ export function registerSocketHandlers(io: Server) {
       console.log(`🔌 User disconnected: ${userId}`);
     });
   });
+}
+
+// ── Helpers matching INSTANTANÉ ──────────────────────────────────────────────
+function cardOf(s: InstantSeeker) {
+  return {
+    userId: s.userId, name: s.name, avatar: s.avatar, tdahType: s.tdahType, workStyle: s.workStyle,
+    sessionsCompleted: s.sessionsCompleted, sessionsNoShow: s.sessionsNoShow,
+    preferredLanguages: s.preferredLanguages, duration: s.duration, tasks: s.tasks,
+    category: s.category, ambiance: s.ambiance, energy: s.energy,
+  };
+}
+
+function removeInstant(userId: string) {
+  const i = instantQueue.findIndex(u => u.userId === userId);
+  if (i !== -1) instantQueue.splice(i, 1);
+}
+
+// Met un chercheur en file, ou crée une proposition s'il y a un partenaire compatible
+function enqueueInstant(io: Server, seeker: InstantSeeker) {
+  const idx = instantQueue.findIndex(o =>
+    o.userId !== seeker.userId &&
+    o.duration === seeker.duration &&
+    !seeker.passed.has(o.userId) &&
+    !o.passed.has(seeker.userId)
+  );
+  if (idx !== -1) {
+    const partner = instantQueue.splice(idx, 1)[0];   // partner attendait déjà → il devient créateur
+    createProposal(io, partner, seeker);
+  } else {
+    instantQueue.push(seeker);
+    io.to(`user:${seeker.userId}`).emit('instant:waiting');
+  }
+}
+
+function createProposal(io: Server, creator: InstantSeeker, joiner: InstantSeeker) {
+  const prop: InstantProposal = {
+    creatorId: creator.userId,
+    partnerId: joiner.userId,
+    accepts: new Set<string>(),
+    seekers: { [creator.userId]: creator, [joiner.userId]: joiner },
+    timer: setTimeout(() => {
+      // Expiration : aucune réciprocité à temps → on remet les deux en file
+      if (proposalByUser.get(creator.userId) === prop) endProposal(io, prop, [creator.userId, joiner.userId]);
+    }, PROPOSAL_TTL_MS),
+  };
+  proposalByUser.set(creator.userId, prop);
+  proposalByUser.set(joiner.userId, prop);
+  io.to(`user:${creator.userId}`).emit('instant:proposal', { partner: cardOf(joiner), ttl: PROPOSAL_TTL_MS });
+  io.to(`user:${joiner.userId}`).emit('instant:proposal',  { partner: cardOf(creator), ttl: PROPOSAL_TTL_MS });
+}
+
+// Termine une proposition : marque le « passé » mutuel et remet en file les userId demandés
+function endProposal(io: Server, prop: InstantProposal, requeue: string[]) {
+  clearTimeout(prop.timer);
+  const a = prop.creatorId, b = prop.partnerId;
+  proposalByUser.delete(a);
+  proposalByUser.delete(b);
+  prop.seekers[a]?.passed.add(b);
+  prop.seekers[b]?.passed.add(a);
+  io.to(`user:${a}`).emit('instant:proposal_ended');
+  io.to(`user:${b}`).emit('instant:proposal_ended');
+  for (const uid of requeue) {
+    const sk = prop.seekers[uid];
+    if (sk) enqueueInstant(io, sk);
+  }
+}
+
+function acceptInstant(io: Server, userId: string) {
+  const prop = proposalByUser.get(userId);
+  if (!prop) return;
+  prop.accepts.add(userId);
+  const other = userId === prop.creatorId ? prop.partnerId : prop.creatorId;
+  io.to(`user:${other}`).emit('instant:partner_accepted');
+  if (prop.accepts.has(prop.creatorId) && prop.accepts.has(prop.partnerId)) {
+    clearTimeout(prop.timer);
+    proposalByUser.delete(prop.creatorId);
+    proposalByUser.delete(prop.partnerId);
+    createInstantSlot(io, prop).catch(() => {});
+  }
+}
+
+// Refuser : les deux retournent en file (en s'étant « passés » mutuellement)
+function declineInstant(io: Server, userId: string) {
+  const prop = proposalByUser.get(userId);
+  if (!prop) return;
+  endProposal(io, prop, [prop.creatorId, prop.partnerId]);
+}
+
+// Annuler / déconnexion : l'acteur quitte, l'autre est remis en file
+function cancelInstant(io: Server, userId: string) {
+  const prop = proposalByUser.get(userId);
+  if (prop) {
+    const other = userId === prop.creatorId ? prop.partnerId : prop.creatorId;
+    endProposal(io, prop, [other]);
+  }
+  removeInstant(userId);
+}
+
+async function createInstantSlot(io: Server, prop: InstantProposal) {
+  const creator = prop.seekers[prop.creatorId];
+  const partner = prop.seekers[prop.partnerId];
+  const slot = await prisma.slot.create({
+    data: {
+      creatorId: prop.creatorId,
+      partnerId: prop.partnerId,
+      status: 'CONFIRMED',
+      type: 'INSTANT',
+      startTime: new Date(),
+      duration: creator.duration,
+      creatorTask: creator.tasks[0] || null,
+      creatorTasks: creator.tasks,
+      partnerTask: partner.tasks[0] || null,
+      category: creator.category || null,
+      ambiance: creator.ambiance || null,
+      energy: creator.energy || null,
+    },
+  });
+  io.to(`user:${prop.creatorId}`).emit('session:matched', { slotId: slot.id });
+  io.to(`user:${prop.partnerId}`).emit('session:matched', { slotId: slot.id });
 }
 
 function findMatch(seeker: MatchingUser): MatchingUser | null {
