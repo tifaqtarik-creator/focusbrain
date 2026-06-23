@@ -17,7 +17,6 @@ import { useAppStore } from '../stores/useStore';
 import { useSlotStore } from '../stores/useSlotStore';
 import { useI18n } from '../lib/i18n';
 import SlotNotifications from '../components/slots/SlotNotifications';
-import FocusNow from '../components/focus/FocusNow';
 import { getSocket } from '../lib/socket';
 import {
   reliability, getFavoriteIds, addFavorite, removeFavorite,
@@ -529,8 +528,14 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Focus instantané + salles 24/7 */}
-        <FocusNow />
+        {/* Barre d'action principale — planifier une session humaine (body doubling) */}
+        <div className="bg-white border-b border-line px-6 py-4 flex flex-col items-center gap-1.5">
+          <button onClick={openNewSession}
+            className="flex items-center gap-2 bg-teal-500 hover:bg-teal-600 text-white font-black text-base px-8 py-3.5 rounded-2xl shadow-card hover:shadow-lg transition-all">
+            <Plus size={20} strokeWidth={2.5} /> Nouvelle session
+          </button>
+          <p className="text-xs text-ink-400">Planifie une session de focus avec un partenaire</p>
+        </div>
 
         <div className="bg-white border-b border-line px-6 py-3 flex items-center justify-between">
           <div>
@@ -552,10 +557,6 @@ export default function Dashboard() {
             <p className="text-xs text-ink-400 bg-surface-soft rounded-xl px-3 py-2 hidden md:block">
               {sc.clickToCreate}
             </p>
-            <button onClick={openNewSession}
-              className="flex items-center gap-1.5 bg-teal-500 hover:bg-teal-600 text-white font-black text-sm px-4 py-2.5 rounded-xl transition-colors shrink-0">
-              <Plus size={16} /> Nouvelle session
-            </button>
           </div>
         </div>
 
