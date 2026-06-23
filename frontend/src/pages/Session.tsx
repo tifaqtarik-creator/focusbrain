@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Video, Coffee, PartyPopper } from 'lucide-react';
 import { getSocket } from '../lib/socket';
 import api from '../lib/api';
 import { useI18n } from '../lib/i18n';
@@ -86,19 +87,19 @@ export default function Session() {
   if (phase === 'checkin') return (
     <div className="max-w-lg mx-auto px-4 py-10">
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
-        <h1 className="text-2xl font-black text-gray-900 mb-1">{s.checkinTitle}</h1>
-        <p className="text-gray-400 text-sm mb-8">{s.checkinSub}</p>
+        <h1 className="text-2xl font-black text-ink-900 mb-1">{s.checkinTitle}</h1>
+        <p className="text-ink-400 text-sm mb-8">{s.checkinSub}</p>
 
         <div className="space-y-5 mb-8">
           {MOOD_KEYS.map(key => (
             <div key={key}>
-              <label className="font-semibold text-sm text-gray-700 block mb-2">{s.moods[key]}</label>
+              <label className="font-semibold text-sm text-ink-700 block mb-2">{s.moods[key]}</label>
               <div className="flex gap-3">
                 {MOOD_EMOJIS[key].map((e, i) => (
                   <button
                     key={i}
                     onClick={() => setMood(prev => ({ ...prev, [key]: i + 1 }))}
-                    className={`text-3xl p-2 rounded-xl transition-all ${mood[key] === i + 1 ? 'bg-teal-100 scale-110 ring-2 ring-teal-400' : 'hover:bg-gray-100'}`}
+                    className={`text-3xl p-2 rounded-xl transition-all ${mood[key] === i + 1 ? 'bg-teal-100 scale-110 ring-2 ring-teal-400' : 'hover:bg-surface-muted'}`}
                     aria-label={`${s.moods[key]} ${i + 1}`}
                   >
                     {e}
@@ -117,32 +118,32 @@ export default function Session() {
           <AnimatePresence>
             {taskParalysis && (
               <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="bg-violet-50 rounded-2xl p-5 mb-3">
-                <p className="font-semibold text-sm text-gray-900 mb-3">{s.taskParalysisTitle}</p>
+                <p className="font-semibold text-sm text-ink-900 mb-3">{s.taskParalysisTitle}</p>
                 <input
                   value={task} onChange={e => setTask(e.target.value)} placeholder={s.taskParalysisPlaceholder}
                   className="w-full border-2 border-violet-200 rounded-xl px-4 py-3 focus:border-violet-400 focus:outline-none text-sm"
                 />
-                <p className="text-xs text-gray-400 mt-2">{s.taskParalysisHint}</p>
+                <p className="text-xs text-ink-400 mt-2">{s.taskParalysisHint}</p>
               </motion.div>
             )}
           </AnimatePresence>
           {!taskParalysis && (
             <input
               value={task} onChange={e => setTask(e.target.value)} placeholder={s.taskPlaceholder}
-              className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-teal-500 focus:outline-none text-sm"
+              className="w-full border-2 border-line rounded-xl px-4 py-3 focus:border-teal-500 focus:outline-none text-sm"
             />
           )}
         </div>
 
         {/* Ambient sound */}
         <div className="mb-8">
-          <label className="font-semibold text-sm text-gray-700 block mb-2">{s.ambientSound}</label>
+          <label className="font-semibold text-sm text-ink-700 block mb-2">{s.ambientSound}</label>
           <div className="flex gap-2 flex-wrap">
             {SOUND_IDS.map(id => (
               <button
                 key={id}
                 onClick={() => setSound(id)}
-                className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${sound === id ? 'bg-teal-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${sound === id ? 'bg-teal-500 text-white' : 'bg-surface-muted text-ink-500 hover:bg-line'}`}
               >
                 {s.sounds[id]}
               </button>
@@ -170,20 +171,24 @@ export default function Session() {
         </div>
       )}
 
-      <div className="text-8xl font-black text-gray-900 mb-2 tabular-nums">
+      <div className="text-8xl font-black text-ink-900 mb-2 tabular-nums">
         {String(mins).padStart(2, '0')}:{String(secs).padStart(2, '0')}
       </div>
-      <p className="text-gray-400 text-sm mb-8">{phase === 'break' ? s.breakTime : s.inSession}</p>
+      <p className="text-ink-400 text-sm mb-8">{phase === 'break' ? s.breakTime : s.inSession}</p>
 
       {/* Video placeholder */}
-      <div className="bg-gray-100 rounded-2xl aspect-video mb-6 flex items-center justify-center">
-        <p className="text-gray-400 text-sm">📹 Daily.co — VITE_DAILY_DOMAIN</p>
+      <div className="bg-surface-muted rounded-2xl aspect-video mb-6 flex items-center justify-center gap-2 text-ink-400">
+        <Video size={18} strokeWidth={2} />
+        <p className="text-sm">Daily.co — VITE_DAILY_DOMAIN</p>
       </div>
 
       <AnimatePresence>
         {breakProposed && !breakActive && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="bg-amber-50 rounded-2xl p-5 mb-4">
-            <p className="font-semibold text-gray-900 mb-3">{s.breakProposed}</p>
+            <p className="font-semibold text-ink-900 mb-3 flex items-center justify-center gap-2">
+              <Coffee size={18} strokeWidth={2} className="text-amber-600" />
+              {s.breakProposed}
+            </p>
             <button
               onClick={() => getSocket().emit('session:break_accept', { sessionId: id })}
               className="bg-amber-400 text-white font-bold px-6 py-2.5 rounded-xl hover:bg-amber-500 transition-colors"
@@ -201,7 +206,7 @@ export default function Session() {
         >
           {s.extend}
         </button>
-        <button onClick={leave} className="text-gray-400 hover:text-gray-600 text-sm px-6 py-3">
+        <button onClick={leave} className="text-ink-400 hover:text-ink-700 text-sm px-6 py-3">
           {s.leave}
         </button>
       </div>
@@ -214,10 +219,14 @@ export default function Session() {
       initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
       className="max-w-lg mx-auto px-4 py-20 text-center"
     >
-      <div className="text-8xl mb-6">🎉</div>
-      <h1 className="text-3xl font-black text-gray-900 mb-4">{s.doneTitle}</h1>
+      <div className="flex justify-center mb-6">
+        <span className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-teal-50 text-teal-500">
+          <PartyPopper size={40} strokeWidth={2} />
+        </span>
+      </div>
+      <h1 className="text-3xl font-black text-ink-900 mb-4">{s.doneTitle}</h1>
       <p className="text-xl text-teal-600 font-semibold mb-2">{s.doneSub}</p>
-      <p className="text-gray-500 mb-10">{s.doneMsg} <strong>{duration}</strong> {s.doneMin}</p>
+      <p className="text-ink-500 mb-10">{s.doneMsg} <strong>{duration}</strong> {s.doneMin}</p>
       <button
         onClick={() => navigate('/dashboard')}
         className="bg-teal-500 text-white font-black py-4 px-12 rounded-2xl text-lg hover:bg-teal-600 transition-colors"

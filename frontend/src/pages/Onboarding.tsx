@@ -9,54 +9,62 @@ import PhoneInput from 'react-phone-input-2';
 import 'react-phone-input-2/lib/style.css';
 import Select from 'react-select';
 import { Country, City } from 'country-state-city';
+import {
+  Brain, Camera, MapPin, User, Clock, Check, CheckCircle2,
+  Waves, Zap, CircleDashed, CircleHelp, Search, Lightbulb,
+  Briefcase, Users, HeartHandshake, CalendarDays, Flower2, MessageSquare,
+  MicOff, Shuffle, Sunrise, Sun, Moon, MoonStar, Lock, Rocket,
+  ArrowRight, ArrowLeft, Venus, Mars, CircleUser,
+} from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import api from '../lib/api';
 import { useAppStore } from '../stores/useStore';
 
 // ── Données ────────────────────────────────────────────────────────────────────
 
-const GENDERS = [
-  { value: 'HOMME',               label: '👨 Homme' },
-  { value: 'FEMME',               label: '👩 Femme' },
-  { value: 'NON_BINAIRE',         label: '🧑 Non-binaire' },
-  { value: 'PREFERE_NE_PAS_DIRE', label: '🔒 Ne pas préciser' },
+const GENDERS: { value: string; icon: LucideIcon; label: string }[] = [
+  { value: 'HOMME',               icon: Mars,       label: 'Homme' },
+  { value: 'FEMME',               icon: Venus,      label: 'Femme' },
+  { value: 'NON_BINAIRE',         icon: CircleUser, label: 'Non-binaire' },
+  { value: 'PREFERE_NE_PAS_DIRE', icon: Lock,       label: 'Ne pas préciser' },
 ];
 
-const TDAH_TYPES = [
-  { value: 'INATTENTIF',          emoji: '🌊', label: 'Inattentif',            desc: 'Difficultés de concentration, rêveries' },
-  { value: 'HYPERACTIF',          emoji: '⚡', label: 'Hyperactif / Impulsif', desc: 'Énergie débordante, impulsivité' },
-  { value: 'COMBINE',             emoji: '🌀', label: 'Combiné',               desc: 'Les deux à la fois' },
-  { value: 'NON_SPECIFIE',        emoji: '❓', label: 'Je ne sais pas encore', desc: '' },
-  { value: 'PREFERE_NE_PAS_DIRE', emoji: '🔒', label: 'Ne pas préciser',       desc: '' },
+const TDAH_TYPES: { value: string; icon: LucideIcon; label: string; desc: string }[] = [
+  { value: 'INATTENTIF',          icon: Waves,        label: 'Inattentif',            desc: 'Difficultés de concentration, rêveries' },
+  { value: 'HYPERACTIF',          icon: Zap,          label: 'Hyperactif / Impulsif', desc: 'Énergie débordante, impulsivité' },
+  { value: 'COMBINE',             icon: CircleDashed, label: 'Combiné',               desc: 'Les deux à la fois' },
+  { value: 'NON_SPECIFIE',        icon: CircleHelp,   label: 'Je ne sais pas encore', desc: '' },
+  { value: 'PREFERE_NE_PAS_DIRE', icon: Lock,         label: 'Ne pas préciser',       desc: '' },
 ];
 
-const DIAGNOSIS_STATUS = [
-  { value: 'DIAGNOSTIQUE',       emoji: '✅', label: 'Diagnostiqué(e) officiellement' },
-  { value: 'EN_COURS',          emoji: '🔍', label: 'En cours de diagnostic' },
-  { value: 'AUTO_DIAGNOSTIQUE', emoji: '💭', label: 'Auto-diagnostiqué(e)' },
-  { value: 'NON_DIAGNOSTIQUE',  emoji: '🤔', label: 'Je découvre le sujet' },
+const DIAGNOSIS_STATUS: { value: string; icon: LucideIcon; label: string }[] = [
+  { value: 'DIAGNOSTIQUE',       icon: CheckCircle2, label: 'Diagnostiqué(e) officiellement' },
+  { value: 'EN_COURS',          icon: Search,       label: 'En cours de diagnostic' },
+  { value: 'AUTO_DIAGNOSTIQUE', icon: Lightbulb,    label: 'Auto-diagnostiqué(e)' },
+  { value: 'NON_DIAGNOSTIQUE',  icon: CircleHelp,   label: 'Je découvre le sujet' },
 ];
 
-const OBJECTIVES = [
-  { value: 'FOCUS_TRAVAIL',       emoji: '💼', label: 'Mieux me concentrer au travail' },
-  { value: 'TROUVER_PARTENAIRES', emoji: '👥', label: 'Trouver des partenaires body doubling' },
-  { value: 'RENCONTRER_TDAH',     emoji: '🤝', label: 'Rencontrer d\'autres adultes TDAH' },
-  { value: 'CREER_ROUTINES',      emoji: '📅', label: 'Créer des routines stables' },
-  { value: 'GERER_EMOTIONS',      emoji: '🧘', label: 'Gérer procrastination & anxiété' },
-  { value: 'PARTAGER_EXPERIENCE', emoji: '💬', label: 'Partager & aider la communauté' },
+const OBJECTIVES: { value: string; icon: LucideIcon; label: string }[] = [
+  { value: 'FOCUS_TRAVAIL',       icon: Briefcase,     label: 'Mieux me concentrer au travail' },
+  { value: 'TROUVER_PARTENAIRES', icon: Users,         label: 'Trouver des partenaires body doubling' },
+  { value: 'RENCONTRER_TDAH',     icon: HeartHandshake, label: 'Rencontrer d\'autres adultes TDAH' },
+  { value: 'CREER_ROUTINES',      icon: CalendarDays,  label: 'Créer des routines stables' },
+  { value: 'GERER_EMOTIONS',      icon: Flower2,       label: 'Gérer procrastination & anxiété' },
+  { value: 'PARTAGER_EXPERIENCE', icon: MessageSquare, label: 'Partager & aider la communauté' },
 ];
 
-const WORK_STYLES = [
-  { value: 'SILENCIEUX', emoji: '🤫', label: 'En silence', desc: 'Concentration max' },
-  { value: 'SOCIAL',     emoji: '👥', label: 'Avec du monde', desc: 'L\'énergie des autres' },
-  { value: 'FLEXIBLE',   emoji: '🔀', label: 'Flexible', desc: 'Selon l\'humeur' },
+const WORK_STYLES: { value: string; icon: LucideIcon; label: string; desc: string }[] = [
+  { value: 'SILENCIEUX', icon: MicOff,   label: 'En silence', desc: 'Concentration max' },
+  { value: 'SOCIAL',     icon: Users,    label: 'Avec du monde', desc: 'L\'énergie des autres' },
+  { value: 'FLEXIBLE',   icon: Shuffle,  label: 'Flexible', desc: 'Selon l\'humeur' },
 ];
 
-const AVAILABILITIES = [
-  { value: 'MATIN',      emoji: '🌅', label: 'Matin',      desc: '6h–12h' },
-  { value: 'APRES_MIDI', emoji: '☀️', label: 'Après-midi', desc: '12h–18h' },
-  { value: 'SOIR',       emoji: '🌙', label: 'Soir',       desc: '18h–23h' },
-  { value: 'NUIT',       emoji: '🌃', label: 'Nuit',       desc: '23h–6h' },
-  { value: 'WEEKEND',    emoji: '📅', label: 'Week-end',   desc: 'Sam & Dim' },
+const AVAILABILITIES: { value: string; icon: LucideIcon; label: string; desc: string }[] = [
+  { value: 'MATIN',      icon: Sunrise,     label: 'Matin',      desc: '6h–12h' },
+  { value: 'APRES_MIDI', icon: Sun,         label: 'Après-midi', desc: '12h–18h' },
+  { value: 'SOIR',       icon: Moon,        label: 'Soir',       desc: '18h–23h' },
+  { value: 'NUIT',       icon: MoonStar,    label: 'Nuit',       desc: '23h–6h' },
+  { value: 'WEEKEND',    icon: CalendarDays, label: 'Week-end',   desc: 'Sam & Dim' },
 ];
 
 const DICEBEAR_AVATARS = [
@@ -75,6 +83,8 @@ const DICEBEAR_AVATARS = [
 ];
 
 const TOTAL_STEPS = 4;
+
+const STEP_ICONS: LucideIcon[] = [User, Camera, Brain, Clock];
 
 interface OnboardingData {
   // Étape 1
@@ -203,16 +213,18 @@ export default function Onboarding() {
   const stepTitles = ['Ton identité', 'Photo & Localisation', 'Ton profil TDAH', 'Ton style de travail'];
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-teal-50 via-white to-purple-50 flex flex-col">
+    <div className="min-h-screen bg-gradient-to-b from-teal-50 via-white to-surface-soft flex flex-col">
 
       {/* Header progression */}
-      <div className="sticky top-0 z-10 bg-white/95 backdrop-blur border-b border-gray-100 px-4 py-3">
+      <div className="sticky top-0 z-10 bg-white/95 backdrop-blur border-b border-line px-4 py-3">
         <div className="max-w-lg mx-auto">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-teal-500 font-black">🧠 FocusBrain</span>
-            <span className="text-gray-400 text-sm">Étape {step}/{TOTAL_STEPS} · {stepTitles[step - 1]}</span>
+            <span className="text-teal-600 font-black flex items-center gap-1.5">
+              <Brain size={18} strokeWidth={2} />FocusBrain
+            </span>
+            <span className="text-ink-400 text-sm">Étape {step}/{TOTAL_STEPS} · {stepTitles[step - 1]}</span>
           </div>
-          <div className="w-full bg-gray-100 rounded-full h-2.5">
+          <div className="w-full bg-surface-muted rounded-full h-2.5">
             <motion.div
               className="bg-gradient-to-r from-teal-400 to-teal-500 h-2.5 rounded-full"
               animate={{ width: `${(step / TOTAL_STEPS) * 100}%` }}
@@ -220,9 +232,9 @@ export default function Onboarding() {
             />
           </div>
           <div className="flex justify-between mt-1.5">
-            {['👤','📸','🧠','⏰'].map((e, i) => (
-              <div key={i} className={`flex items-center gap-1 text-xs transition-colors ${i + 1 <= step ? 'text-teal-500 font-bold' : 'text-gray-300'}`}>
-                <span>{e}</span>
+            {STEP_ICONS.map((Icon, i) => (
+              <div key={i} className={`flex items-center gap-1 text-xs transition-colors ${i + 1 <= step ? 'text-teal-600 font-bold' : 'text-ink-400'}`}>
+                <Icon size={14} strokeWidth={2} />
                 <span className="hidden sm:inline">{stepTitles[i]}</span>
               </div>
             ))}
@@ -246,13 +258,13 @@ export default function Onboarding() {
               {/* ══ ÉTAPE 1 — Identité ═══════════════════════════════════════ */}
               {step === 1 && (
                 <div>
-                  <Header emoji="👤" title="Qui es-tu ?" sub="Quelques infos pour personnaliser ton FocusBrain" />
+                  <Header icon={User} title="Qui es-tu ?" sub="Quelques infos pour personnaliser ton FocusBrain" />
 
                   {/* Genre */}
                   <Label>Genre</Label>
                   <div className="grid grid-cols-2 gap-2 mb-5">
                     {GENDERS.map(g => (
-                      <Chip key={g.value} selected={d.gender === g.value} onClick={() => set('gender', g.value)} label={g.label} />
+                      <Chip key={g.value} selected={d.gender === g.value} onClick={() => set('gender', g.value)} icon={g.icon} label={g.label} />
                     ))}
                   </div>
 
@@ -265,7 +277,7 @@ export default function Onboarding() {
                       { key: 'birthYear', placeholder: 'Année', options: Array.from({length:55},(_,i)=>({v:`${2008-i}`,l:`${2008-i}`})) },
                     ].map(({key, placeholder, options}) => (
                       <select key={key} value={(d as any)[key]} onChange={e => set(key as any, e.target.value)}
-                        className="border-2 border-gray-200 focus:border-teal-400 rounded-xl px-3 py-2.5 text-sm outline-none bg-white">
+                        className="border-2 border-line focus:border-teal-400 rounded-xl px-3 py-2.5 text-sm outline-none bg-white">
                         <option value="">{placeholder}</option>
                         {options.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
                       </select>
@@ -290,26 +302,26 @@ export default function Onboarding() {
               {/* ══ ÉTAPE 2 — Photo + Localisation ══════════════════════════ */}
               {step === 2 && (
                 <div>
-                  <Header emoji="📸" title="Photo & localisation" sub="Pour que les membres te reconnaissent sur la carte" />
+                  <Header icon={Camera} title="Photo & localisation" sub="Pour que les membres te reconnaissent sur la carte" />
 
                   {/* Photo */}
                   <Label optional>Photo de profil</Label>
                   <div className="flex items-center gap-4 mb-4">
                     <div onClick={() => fileRef.current?.click()}
-                      className={`w-20 h-20 rounded-full border-4 border-dashed cursor-pointer flex items-center justify-center overflow-hidden shrink-0 transition-colors ${d.avatar && !d.avatarFile ? '' : 'hover:border-teal-400'} ${d.avatar ? 'border-teal-400' : 'border-gray-300 bg-gray-50'}`}>
+                      className={`w-20 h-20 rounded-full border-4 border-dashed cursor-pointer flex items-center justify-center overflow-hidden shrink-0 transition-colors ${d.avatar && !d.avatarFile ? '' : 'hover:border-teal-400'} ${d.avatar ? 'border-teal-400' : 'border-line bg-surface-soft'}`}>
                       {d.avatar
                         ? <img src={d.avatar} className="w-full h-full object-cover" alt="preview" />
-                        : <div className="text-center"><p className="text-2xl">📷</p><p className="text-xs text-gray-400">Choisir</p></div>
+                        : <div className="text-center flex flex-col items-center gap-1"><Camera size={24} strokeWidth={2} className="text-ink-400" /><p className="text-xs text-ink-400">Choisir</p></div>
                       }
                     </div>
                     <div className="flex-1">
-                      <p className="text-xs text-gray-500 mb-2 font-medium">Ou choisis un avatar :</p>
+                      <p className="text-xs text-ink-500 mb-2 font-medium">Ou choisis un avatar :</p>
                       <div className="grid grid-cols-6 gap-1.5">
                         {DICEBEAR_AVATARS.map(av => {
                           const url = `https://api.dicebear.com/7.x/avataaars/svg?seed=${av.seed}&backgroundColor=${av.bg}`;
                           return (
                             <button key={av.seed} onClick={() => { set('avatar', url); set('avatarFile', null); }}
-                              className={`w-9 h-9 rounded-full overflow-hidden border-2 transition-all hover:scale-110 ${d.avatar === url ? 'border-teal-500 ring-2 ring-teal-300 scale-110' : 'border-gray-200'}`}>
+                              className={`w-9 h-9 rounded-full overflow-hidden border-2 transition-all hover:scale-110 ${d.avatar === url ? 'border-teal-500 ring-2 ring-teal-300 scale-110' : 'border-line'}`}>
                               <img src={url} alt={av.seed} className="w-full h-full" />
                             </button>
                           );
@@ -325,33 +337,33 @@ export default function Onboarding() {
                     className="w-full flex items-center justify-center gap-2 bg-teal-500 hover:bg-teal-600 disabled:opacity-60 text-white font-bold py-3 rounded-xl mb-3 transition-colors">
                     {geoLoad
                       ? <><div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />Détection...</>
-                      : <><span>📍</span>Détecter ma position automatiquement</>
+                      : <><MapPin size={18} strokeWidth={2} />Détecter ma position automatiquement</>
                     }
                   </button>
 
                   {d.city && (
                     <div className="bg-teal-50 border border-teal-200 rounded-xl px-4 py-2 mb-3 text-sm text-teal-700 flex items-center gap-2">
-                      <span>✅</span><strong>{d.city}, {d.country}</strong>
+                      <CheckCircle2 size={16} strokeWidth={2} /><strong>{d.city}, {d.country}</strong>
                     </div>
                   )}
 
                   <div className="grid grid-cols-2 gap-3 mb-6">
                     <div>
-                      <p className="text-xs text-gray-400 mb-1">Pays</p>
+                      <p className="text-xs text-ink-400 mb-1">Pays</p>
                       <Select options={countryOptions} styles={selectStyles} isSearchable
                         defaultValue={countryOptions.find(c => c.value === 'MA')}
                         onChange={(o: any) => { set('countryCode', o.value); set('country', o.name); set('city', ''); }}
                         placeholder="Pays..." />
                     </div>
                     <div>
-                      <p className="text-xs text-gray-400 mb-1">Ville</p>
+                      <p className="text-xs text-ink-400 mb-1">Ville</p>
                       {cityOptions.length > 0
                         ? <Select options={cityOptions} styles={selectStyles} isSearchable
                             value={d.city ? { value: d.city, label: d.city } : null}
                             onChange={(o: any) => set('city', o.value)}
                             placeholder="Ville..." noOptionsMessage={() => 'Aucune'} />
                         : <input value={d.city} onChange={e => set('city', e.target.value)}
-                            placeholder="Ta ville..." className="w-full border-2 border-gray-200 focus:border-teal-400 rounded-xl px-3 py-2.5 text-sm outline-none" />
+                            placeholder="Ta ville..." className="w-full border-2 border-line focus:border-teal-400 rounded-xl px-3 py-2.5 text-sm outline-none" />
                       }
                     </div>
                   </div>
@@ -363,47 +375,54 @@ export default function Onboarding() {
               {/* ══ ÉTAPE 3 — Profil TDAH ═══════════════════════════════════ */}
               {step === 3 && (
                 <div>
-                  <Header emoji="🧠" title="Ton profil TDAH" sub="Aucune mauvaise réponse — chaque cerveau est unique" />
+                  <Header icon={Brain} title="Ton profil TDAH" sub="Aucune mauvaise réponse — chaque cerveau est unique" />
 
                   {/* Type TDAH */}
                   <Label>Type de TDAH</Label>
                   <div className="space-y-2 mb-5">
-                    {TDAH_TYPES.map(t => (
+                    {TDAH_TYPES.map(t => {
+                      const Icon = t.icon;
+                      return (
                       <button key={t.value} onClick={() => set('tdahType', t.value)}
-                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 text-left transition-all ${d.tdahType === t.value ? 'border-teal-500 bg-teal-50 shadow-sm' : 'border-gray-200 hover:border-teal-300'}`}>
-                        <span className="text-2xl">{t.emoji}</span>
+                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 text-left transition-all ${d.tdahType === t.value ? 'border-teal-500 bg-teal-50 shadow-sm' : 'border-line hover:border-teal-300'}`}>
+                        <Icon size={24} strokeWidth={2} className={d.tdahType === t.value ? 'text-teal-600' : 'text-ink-500'} />
                         <div className="flex-1">
-                          <p className="font-bold text-gray-900 text-sm">{t.label}</p>
-                          {t.desc && <p className="text-xs text-gray-400">{t.desc}</p>}
+                          <p className="font-bold text-ink-900 text-sm">{t.label}</p>
+                          {t.desc && <p className="text-xs text-ink-400">{t.desc}</p>}
                         </div>
-                        {d.tdahType === t.value && <span className="text-teal-500">✓</span>}
+                        {d.tdahType === t.value && <Check size={16} strokeWidth={2} className="text-teal-600" />}
                       </button>
-                    ))}
+                      );
+                    })}
                   </div>
 
                   {/* Diagnostic */}
                   <Label>Statut de diagnostic</Label>
                   <div className="grid grid-cols-2 gap-2 mb-5">
-                    {DIAGNOSIS_STATUS.map(ds => (
+                    {DIAGNOSIS_STATUS.map(ds => {
+                      const Icon = ds.icon;
+                      return (
                       <button key={ds.value} onClick={() => set('diagnosisStatus', ds.value)}
-                        className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 text-left text-xs font-medium transition-all ${d.diagnosisStatus === ds.value ? 'border-purple-500 bg-purple-50 text-purple-700' : 'border-gray-200 text-gray-600 hover:border-purple-300'}`}>
-                        <span className="text-base">{ds.emoji}</span>{ds.label}
+                        className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 text-left text-xs font-medium transition-all ${d.diagnosisStatus === ds.value ? 'border-violet-500 bg-violet-50 text-violet-700' : 'border-line text-ink-500 hover:border-violet-400'}`}>
+                        <Icon size={16} strokeWidth={2} className="shrink-0" />{ds.label}
                       </button>
-                    ))}
+                      );
+                    })}
                   </div>
 
                   {/* Objectifs */}
-                  <Label>Objectifs <span className="text-gray-400 font-normal">(max 3)</span></Label>
+                  <Label>Objectifs <span className="text-ink-400 font-normal">(max 3)</span></Label>
                   <div className="grid grid-cols-2 gap-2 mb-6">
                     {OBJECTIVES.map(o => {
                       const sel   = d.workObjectives.includes(o.value);
                       const maxed = !sel && d.workObjectives.length >= 3;
+                      const Icon  = o.icon;
                       return (
                         <button key={o.value} disabled={maxed}
                           onClick={() => set('workObjectives', sel ? d.workObjectives.filter(v => v !== o.value) : [...d.workObjectives, o.value])}
-                          className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 text-left text-xs font-medium transition-all ${sel ? 'border-teal-500 bg-teal-50 text-teal-700' : maxed ? 'border-gray-100 opacity-40 cursor-not-allowed text-gray-400' : 'border-gray-200 text-gray-600 hover:border-teal-300'}`}>
-                          <span className="text-base">{o.emoji}</span><span>{o.label}</span>
-                          {sel && <span className="ml-auto text-teal-500">✓</span>}
+                          className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 text-left text-xs font-medium transition-all ${sel ? 'border-teal-500 bg-teal-50 text-teal-700' : maxed ? 'border-line opacity-40 cursor-not-allowed text-ink-400' : 'border-line text-ink-500 hover:border-teal-300'}`}>
+                          <Icon size={16} strokeWidth={2} className="shrink-0" /><span>{o.label}</span>
+                          {sel && <Check size={14} strokeWidth={2} className="ml-auto text-teal-600 shrink-0" />}
                         </button>
                       );
                     })}
@@ -416,36 +435,40 @@ export default function Onboarding() {
               {/* ══ ÉTAPE 4 — Style & dispo ══════════════════════════════════ */}
               {step === 4 && (
                 <div>
-                  <Header emoji="⏰" title="Comment tu travailles ?" sub="On te trouve les meilleurs partenaires body doubling" />
+                  <Header icon={Clock} title="Comment tu travailles ?" sub="On te trouve les meilleurs partenaires body doubling" />
 
                   {/* Style */}
                   <Label>Style de travail préféré</Label>
                   <div className="grid grid-cols-3 gap-3 mb-5">
-                    {WORK_STYLES.map(s => (
+                    {WORK_STYLES.map(s => {
+                      const Icon = s.icon;
+                      return (
                       <button key={s.value} onClick={() => set('workStyle', s.value)}
-                        className={`flex flex-col items-center gap-1.5 px-2 py-3.5 rounded-xl border-2 transition-all ${d.workStyle === s.value ? 'border-teal-500 bg-teal-50 shadow-sm' : 'border-gray-200 hover:border-teal-300'}`}>
-                        <span className="text-2xl">{s.emoji}</span>
-                        <p className="font-bold text-gray-900 text-xs text-center">{s.label}</p>
-                        <p className="text-gray-400 text-xs text-center">{s.desc}</p>
+                        className={`flex flex-col items-center gap-1.5 px-2 py-3.5 rounded-xl border-2 transition-all ${d.workStyle === s.value ? 'border-teal-500 bg-teal-50 shadow-sm' : 'border-line hover:border-teal-300'}`}>
+                        <Icon size={24} strokeWidth={2} className={d.workStyle === s.value ? 'text-teal-600' : 'text-ink-500'} />
+                        <p className="font-bold text-ink-900 text-xs text-center">{s.label}</p>
+                        <p className="text-ink-400 text-xs text-center">{s.desc}</p>
                       </button>
-                    ))}
+                      );
+                    })}
                   </div>
 
                   {/* Disponibilités */}
-                  <Label>Disponibilités <span className="text-gray-400 font-normal">(multi-choix)</span></Label>
+                  <Label>Disponibilités <span className="text-ink-400 font-normal">(multi-choix)</span></Label>
                   <div className="grid grid-cols-2 gap-2.5 mb-6">
                     {AVAILABILITIES.map(a => {
                       const sel = d.availabilities.includes(a.value);
+                      const Icon = a.icon;
                       return (
                         <button key={a.value}
                           onClick={() => set('availabilities', sel ? d.availabilities.filter(v => v !== a.value) : [...d.availabilities, a.value])}
-                          className={`flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all ${sel ? 'border-teal-500 bg-teal-50 shadow-sm' : 'border-gray-200 hover:border-teal-300'}`}>
-                          <span className="text-xl">{a.emoji}</span>
+                          className={`flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all ${sel ? 'border-teal-500 bg-teal-50 shadow-sm' : 'border-line hover:border-teal-300'}`}>
+                          <Icon size={20} strokeWidth={2} className={sel ? 'text-teal-600' : 'text-ink-500'} />
                           <div>
-                            <p className="font-bold text-gray-900 text-sm">{a.label}</p>
-                            <p className="text-gray-400 text-xs">{a.desc}</p>
+                            <p className="font-bold text-ink-900 text-sm">{a.label}</p>
+                            <p className="text-ink-400 text-xs">{a.desc}</p>
                           </div>
-                          {sel && <span className="ml-auto text-teal-500 font-black">✓</span>}
+                          {sel && <Check size={16} strokeWidth={2} className="ml-auto text-teal-600" />}
                         </button>
                       );
                     })}
@@ -453,13 +476,15 @@ export default function Onboarding() {
 
                   {/* Bouton final */}
                   <button onClick={finish} disabled={saving}
-                    className="w-full bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 disabled:opacity-60 text-white font-black text-lg py-4 rounded-2xl shadow-lg hover:shadow-xl transition-all hover:-translate-y-0.5">
+                    className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 disabled:opacity-60 text-white font-black text-lg py-4 rounded-2xl shadow-card hover:shadow-card transition-all hover:-translate-y-0.5">
                     {saving
-                      ? <span className="flex items-center justify-center gap-2"><div className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin"/>Sauvegarde...</span>
-                      : '🚀 Accéder à FocusBrain !'
+                      ? <><div className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin"/>Sauvegarde...</>
+                      : <><Rocket size={20} strokeWidth={2} />Accéder à FocusBrain !</>
                     }
                   </button>
-                  <button onClick={prev} className="w-full text-gray-400 text-sm mt-3 hover:text-gray-600">← Retour</button>
+                  <button onClick={prev} className="w-full flex items-center justify-center gap-1.5 text-ink-400 text-sm mt-3 hover:text-ink-700">
+                    <ArrowLeft size={14} strokeWidth={2} />Retour
+                  </button>
                 </div>
               )}
 
@@ -473,30 +498,35 @@ export default function Onboarding() {
 
 // ── Micro-composants ───────────────────────────────────────────────────────────
 
-function Header({ emoji, title, sub }: { emoji: string; title: string; sub: string }) {
+function Header({ icon: Icon, title, sub }: { icon: LucideIcon; title: string; sub: string }) {
   return (
     <div className="text-center mb-6">
       <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', damping: 10 }}
-        className="text-5xl block mb-2">{emoji}</motion.span>
-      <h2 className="text-2xl font-black text-gray-900">{title}</h2>
-      <p className="text-gray-500 text-sm mt-1">{sub}</p>
+        className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-teal-50 text-teal-600 mb-3">
+        <Icon size={36} strokeWidth={2} />
+      </motion.span>
+      <h2 className="text-2xl font-black text-ink-900">{title}</h2>
+      <p className="text-ink-500 text-sm mt-1">{sub}</p>
     </div>
   );
 }
 
 function Label({ children, optional }: { children: React.ReactNode; optional?: boolean }) {
   return (
-    <p className="text-xs font-bold text-gray-500 uppercase mb-2">
-      {children}{optional && <span className="text-gray-300 font-normal normal-case ml-1">(optionnel)</span>}
+    <p className="text-xs font-bold text-ink-500 uppercase mb-2">
+      {children}{optional && <span className="text-ink-400 font-normal normal-case ml-1">(optionnel)</span>}
     </p>
   );
 }
 
-function Chip({ selected, onClick, label }: { selected: boolean; onClick: () => void; label: string }) {
+function Chip({ selected, onClick, icon: Icon, label }: { selected: boolean; onClick: () => void; icon: LucideIcon; label: string }) {
   return (
     <button onClick={onClick}
-      className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl border-2 text-sm font-medium transition-all ${selected ? 'border-teal-500 bg-teal-50 text-teal-700 shadow-sm' : 'border-gray-200 text-gray-600 hover:border-teal-300'}`}>
-      {selected && <span className="text-teal-500 text-xs">✓</span>}{label}
+      className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl border-2 text-sm font-medium transition-all ${selected ? 'border-teal-500 bg-teal-50 text-teal-700 shadow-sm' : 'border-line text-ink-500 hover:border-teal-300'}`}>
+      {selected
+        ? <Check size={16} strokeWidth={2} className="text-teal-600 shrink-0" />
+        : <Icon size={16} strokeWidth={2} className="shrink-0" />}
+      {label}
     </button>
   );
 }
@@ -505,12 +535,12 @@ function Actions({ onNext, onPrev }: { onNext: () => void; onPrev?: () => void; 
   return (
     <div className="space-y-2">
       <button onClick={onNext}
-        className="w-full bg-gradient-to-r from-teal-500 to-teal-600 text-white font-black py-3.5 rounded-xl shadow-md hover:shadow-lg transition-all hover:-translate-y-0.5">
-        Continuer →
+        className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-teal-500 to-teal-600 text-white font-black py-3.5 rounded-xl shadow-card hover:shadow-card transition-all hover:-translate-y-0.5">
+        Continuer<ArrowRight size={18} strokeWidth={2} />
       </button>
       <div className="flex gap-2">
-        {onPrev && <button onClick={onPrev} className="flex-1 text-gray-400 text-sm py-2 hover:text-gray-600">← Retour</button>}
-        <button onClick={onNext} className="flex-1 text-gray-400 text-sm py-2 hover:text-gray-600">Passer →</button>
+        {onPrev && <button onClick={onPrev} className="flex-1 flex items-center justify-center gap-1.5 text-ink-400 text-sm py-2 hover:text-ink-700"><ArrowLeft size={14} strokeWidth={2} />Retour</button>}
+        <button onClick={onNext} className="flex-1 flex items-center justify-center gap-1.5 text-ink-400 text-sm py-2 hover:text-ink-700">Passer<ArrowRight size={14} strokeWidth={2} /></button>
       </div>
     </div>
   );

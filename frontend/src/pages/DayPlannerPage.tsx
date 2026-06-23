@@ -4,6 +4,11 @@
  */
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import {
+  ClipboardList, CheckCircle2, Plus, Trash2, Pencil, Printer, Trophy, Lightbulb,
+  Sparkles, BrainCircuit, Hourglass, BarChart3, Flame, Clock, Timer, User,
+  Landmark, Settings, X, Rocket, Medal, Lock, MapPin, Check,
+} from 'lucide-react';
 import { usePlannerContext, Task, PrayerSettings } from '../context/PlannerContext';
 import {
   CATEGORIES, BADGES, getDailyTip, computeTaskXP,
@@ -99,7 +104,7 @@ export default function DayPlannerPage() {
   };
 
   return (
-    <div className="h-full overflow-y-auto bg-gray-50">
+    <div className="h-full overflow-y-auto bg-surface-soft">
       {/* Styles impression */}
       <style>{`
         @media print {
@@ -112,37 +117,44 @@ export default function DayPlannerPage() {
       <div className="no-print max-w-3xl mx-auto px-5 py-6 pb-32">
 
         {/* Conseil du jour */}
-        <div className="bg-gradient-to-r from-teal-50 to-purple-50 border border-teal-100 rounded-2xl px-4 py-3 mb-4">
-          <p className="text-sm text-gray-700">💡 <strong>Conseil du jour :</strong> {tip}</p>
+        <div className="bg-teal-50 border border-teal-100 rounded-2xl px-4 py-3 mb-4">
+          <p className="text-sm text-ink-700 flex items-center gap-2">
+            <Lightbulb size={16} strokeWidth={2} className="shrink-0 text-teal-600" />
+            <span><strong>Conseil du jour :</strong> {tip}</span>
+          </p>
         </div>
 
         {/* En-tête : date + XP + niveau */}
-        <div className="bg-white border border-gray-100 rounded-2xl p-5 mb-4 shadow-sm">
+        <div className="bg-white border border-line rounded-2xl p-5 mb-4 shadow-card">
           <div className="flex items-start justify-between mb-3">
             <div>
-              <h1 className="text-xl font-black text-gray-900 capitalize">{fmtFullDate(activeDate)}</h1>
-              <p className="text-sm text-gray-400">{isFuture ? '🔮 Planification future' : activeDate === today() ? "Aujourd'hui" : 'Jour passé'}</p>
+              <h1 className="text-xl font-black text-ink-900 capitalize">{fmtFullDate(activeDate)}</h1>
+              <p className="text-sm text-ink-400">{isFuture ? 'Planification future' : activeDate === today() ? "Aujourd'hui" : 'Jour passé'}</p>
             </div>
             <div className="flex gap-2">
-              <button onClick={() => setShowRewards(true)} title="Récompenses"
-                className="bg-purple-100 text-purple-700 font-bold px-3 py-2 rounded-xl text-sm hover:bg-purple-200">🏆</button>
-              <button onClick={printDay} title="Imprimer"
-                className="bg-gray-100 text-gray-700 font-bold px-3 py-2 rounded-xl text-sm hover:bg-gray-200">🖨️</button>
+              <button onClick={() => setShowRewards(true)} title="Récompenses" aria-label="Récompenses"
+                className="bg-violet-100 text-violet-700 px-3 py-2 rounded-xl hover:bg-violet-200">
+                <Trophy size={18} strokeWidth={2} />
+              </button>
+              <button onClick={printDay} title="Imprimer" aria-label="Imprimer"
+                className="bg-surface-muted text-ink-700 px-3 py-2 rounded-xl hover:bg-line">
+                <Printer size={18} strokeWidth={2} />
+              </button>
             </div>
           </div>
           {/* Barre XP / niveau */}
           <div className="flex items-center gap-3" aria-live="polite">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-purple-500 to-teal-500 flex flex-col items-center justify-center text-white shrink-0">
+            <div className="w-12 h-12 rounded-2xl bg-teal-500 flex flex-col items-center justify-center text-white shrink-0">
               <span className="text-base font-black leading-none">{profile.level}</span>
               <span className="text-[8px]">niv.</span>
             </div>
             <div className="flex-1">
               <div className="flex justify-between text-xs mb-1">
-                <span className="font-bold text-gray-700">{levelTitle(profile.level)}</span>
-                <span className="text-gray-400">{xpCur}/{xpNeed} XP · {profile.totalXP} total</span>
+                <span className="font-bold text-ink-700">{levelTitle(profile.level)}</span>
+                <span className="text-ink-400">{xpCur}/{xpNeed} XP · {profile.totalXP} total</span>
               </div>
-              <div className="w-full bg-gray-100 rounded-full h-2.5">
-                <motion.div className="bg-gradient-to-r from-purple-500 to-teal-500 h-2.5 rounded-full"
+              <div className="w-full bg-surface-muted rounded-full h-2.5">
+                <motion.div className="bg-teal-500 h-2.5 rounded-full"
                   initial={{ width: 0 }} animate={{ width: `${(xpCur / xpNeed) * 100}%` }} transition={{ duration: 0.6 }} />
               </div>
             </div>
@@ -159,14 +171,16 @@ export default function DayPlannerPage() {
         {/* Stats du jour */}
         <div className="grid grid-cols-4 gap-2 my-4">
           {[
-            { v: total, l: 'Tâches', e: '📋' },
-            { v: done, l: 'Faites', e: '✅' },
-            { v: `${progress}%`, l: 'Progrès', e: '📊' },
-            { v: `🔥${profile.streak}`, l: 'Streak', e: '' },
+            { v: total, l: 'Tâches', Icon: ClipboardList },
+            { v: done, l: 'Faites', Icon: CheckCircle2 },
+            { v: `${progress}%`, l: 'Progrès', Icon: BarChart3 },
+            { v: profile.streak, l: 'Streak', Icon: Flame },
           ].map((s, i) => (
-            <div key={i} className="bg-white border border-gray-100 rounded-xl p-3 text-center">
-              <p className="text-lg font-black text-gray-900">{s.e}{s.v}</p>
-              <p className="text-xs text-gray-400">{s.l}</p>
+            <div key={i} className="bg-white border border-line rounded-xl p-3 text-center">
+              <p className="text-lg font-black text-ink-900 flex items-center justify-center gap-1">
+                <s.Icon size={16} strokeWidth={2} className="text-ink-400" />{s.v}
+              </p>
+              <p className="text-xs text-ink-400">{s.l}</p>
             </div>
           ))}
         </div>
@@ -174,29 +188,32 @@ export default function DayPlannerPage() {
         {/* Progression globale */}
         {total > 0 && (
           <div className="mb-2">
-            <div className="w-full bg-gray-100 rounded-full h-3">
+            <div className="w-full bg-surface-muted rounded-full h-3">
               <motion.div className="bg-teal-500 h-3 rounded-full" initial={{ width: 0 }} animate={{ width: `${progress}%` }} />
             </div>
-            <p className="text-xs text-gray-400 mt-1 text-right">{Math.floor(totalMinutes / 60)}h{String(totalMinutes % 60).padStart(2, '0')} planifiées</p>
+            <p className="text-xs text-ink-400 mt-1 text-right">{Math.floor(totalMinutes / 60)}h{String(totalMinutes % 60).padStart(2, '0')} planifiées</p>
           </div>
         )}
 
         {/* Streak banner */}
         {profile.streak >= 2 && (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-2 mb-4 text-center">
-            <p className="text-sm text-amber-800 font-bold">🔥 {profile.streak} jours d'affilée — continue, c'est ton super-pouvoir !</p>
+          <div className="bg-amber-400/10 border border-amber-400/40 rounded-xl px-4 py-2 mb-4 text-center">
+            <p className="text-sm text-amber-600 font-bold flex items-center justify-center gap-1.5">
+              <Flame size={16} strokeWidth={2} />
+              {profile.streak} jours d'affilée — continue, c'est ton super-pouvoir !
+            </p>
           </div>
         )}
 
         {/* Filtre catégories */}
         <div className="flex gap-2 overflow-x-auto pb-2 mb-3">
           <button onClick={() => setActiveCategory('all')}
-            className={`shrink-0 px-3 py-1.5 rounded-xl text-sm font-bold transition-colors ${activeCategory === 'all' ? 'bg-gray-800 text-white' : 'bg-white border border-gray-200 text-gray-600'}`}>
+            className={`shrink-0 px-3 py-1.5 rounded-xl text-sm font-bold transition-colors ${activeCategory === 'all' ? 'bg-ink-900 text-white' : 'bg-white border border-line text-ink-500'}`}>
             Tout ({total})
           </button>
           {Object.entries(CATEGORIES).map(([key, cat]) => counts[key] ? (
             <button key={key} onClick={() => setActiveCategory(key)}
-              className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-bold transition-all border-2 ${activeCategory === key ? 'border-transparent' : 'border-gray-200 bg-white text-gray-600'}`}
+              className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-bold transition-all border-2 ${activeCategory === key ? 'border-transparent' : 'border-line bg-white text-ink-500'}`}
               style={activeCategory === key ? { background: cat.color, color: cat.textColor } : {}}>
               {cat.emoji} {cat.label} ({counts[key]})
             </button>
@@ -211,7 +228,7 @@ export default function DayPlannerPage() {
               <div className="flex items-center gap-2 mb-2">
                 <span className="text-lg">{c.emoji}</span>
                 <span className="font-black text-sm" style={{ color: c.textColor }}>{c.label}</span>
-                <span className="text-xs text-gray-400">{catTasks.filter(t => t.done).length}/{catTasks.length}</span>
+                <span className="text-xs text-ink-400">{catTasks.filter(t => t.done).length}/{catTasks.length}</span>
               </div>
               <div className="space-y-2">
                 {catTasks.map(t => (
@@ -227,26 +244,36 @@ export default function DayPlannerPage() {
 
         {/* Vide → planificateur */}
         {total === 0 && (
-          <div className="bg-white border border-gray-100 rounded-2xl p-6 text-center">
-            <p className="text-4xl mb-2">{isFuture ? '🔮' : '📋'}</p>
-            <p className="font-black text-gray-900 mb-1">{isFuture ? 'Planifie cette journée' : 'Aucune tâche aujourd\'hui'}</p>
-            <p className="text-gray-400 text-sm mb-4">Commence ta journée structurée</p>
+          <div className="bg-white border border-line rounded-2xl p-6 text-center">
+            <div className="flex justify-center mb-2">
+              <ClipboardList size={36} strokeWidth={1.5} className="text-ink-400" />
+            </div>
+            <p className="font-black text-ink-900 mb-1">{isFuture ? 'Planifie cette journée' : 'Aucune tâche aujourd\'hui'}</p>
+            <p className="text-ink-400 text-sm mb-4">Commence ta journée structurée</p>
             <div className="flex flex-col gap-2 max-w-xs mx-auto">
               <button onClick={() => { setEditing(null); setShowAdd(true); }}
-                className="bg-teal-500 text-white font-bold py-2.5 rounded-xl hover:bg-teal-600">✏️ Partir de zéro</button>
+                className="bg-teal-500 text-white font-bold py-2.5 rounded-xl hover:bg-teal-600 flex items-center justify-center gap-2">
+                <Pencil size={18} strokeWidth={2} /> Partir de zéro
+              </button>
               {activeDate !== today() && (tasksByDate[today()]?.length || 0) > 0 && (
                 <button onClick={() => copyDayTo(today(), activeDate)}
-                  className="bg-gray-100 text-gray-700 font-bold py-2.5 rounded-xl hover:bg-gray-200">📋 Copier depuis aujourd'hui</button>
+                  className="bg-surface-muted text-ink-700 font-bold py-2.5 rounded-xl hover:bg-line flex items-center justify-center gap-2">
+                  <ClipboardList size={18} strokeWidth={2} /> Copier depuis aujourd'hui
+                </button>
               )}
               {/* Génération IA */}
-              <div className="bg-purple-50 rounded-xl p-3 mt-1">
-                <p className="text-xs text-purple-700 font-bold mb-2">🧠 Générer avec l'IA</p>
+              <div className="bg-violet-50 rounded-xl p-3 mt-1">
+                <p className="text-xs text-violet-700 font-bold mb-2 flex items-center justify-center gap-1.5">
+                  <BrainCircuit size={16} strokeWidth={2} /> Générer avec l'IA
+                </p>
                 <input value={aiContext} onChange={e => setAiContext(e.target.value)}
                   placeholder="Ex: journée de travail + sport"
-                  className="w-full border border-purple-200 rounded-lg px-3 py-2 text-sm outline-none mb-2" />
+                  className="w-full border border-violet-200 rounded-lg px-3 py-2 text-sm outline-none mb-2" />
                 <button onClick={generateAI} disabled={aiLoading}
-                  className="w-full bg-purple-500 text-white font-bold py-2 rounded-lg text-sm hover:bg-purple-600 disabled:opacity-50">
-                  {aiLoading ? '⏳ Génération...' : '✨ Générer ma journée'}
+                  className="w-full bg-violet-500 text-white font-bold py-2 rounded-lg text-sm hover:bg-violet-600 disabled:opacity-50 flex items-center justify-center gap-2">
+                  {aiLoading
+                    ? <><Hourglass size={16} strokeWidth={2} className="animate-pulse" /> Génération...</>
+                    : <><Sparkles size={16} strokeWidth={2} /> Générer ma journée</>}
                 </button>
               </div>
             </div>
@@ -257,8 +284,8 @@ export default function DayPlannerPage() {
       {/* Bouton flottant ajouter */}
       {total > 0 && (
         <button onClick={() => { setEditing(null); setShowAdd(true); }}
-          className="no-print fixed bottom-6 left-1/2 -translate-x-1/2 bg-teal-500 hover:bg-teal-600 text-white font-black px-6 py-3.5 rounded-2xl shadow-xl flex items-center gap-2 z-40">
-          ➕ Ajouter une tâche
+          className="no-print fixed bottom-6 left-1/2 -translate-x-1/2 bg-teal-500 hover:bg-teal-600 text-white font-black px-6 py-3.5 rounded-2xl shadow-card flex items-center gap-2 z-40">
+          <Plus size={20} strokeWidth={2.5} /> Ajouter une tâche
         </button>
       )}
 
@@ -319,14 +346,14 @@ function CalendarStrip({ activeDate, tasksByDate, onSelect }: { activeDate: stri
       {days.map(d => (
         <button key={d.date} onClick={() => onSelect(d.date)} aria-pressed={d.date === activeDate}
           className={`shrink-0 w-12 py-2 rounded-xl flex flex-col items-center gap-0.5 border-2 transition-all ${
-            d.date === activeDate ? 'border-teal-500 bg-teal-50' : d.isToday ? 'border-teal-200 bg-white' : 'border-gray-100 bg-white'
+            d.date === activeDate ? 'border-teal-500 bg-teal-50' : d.isToday ? 'border-teal-200 bg-white' : 'border-line bg-white'
           }`}>
-          <span className="text-[10px] text-gray-400">{d.label}</span>
-          <span className={`text-sm font-bold ${d.date === activeDate ? 'text-teal-700' : 'text-gray-800'}`}>{d.num}</span>
+          <span className="text-[10px] text-ink-400">{d.label}</span>
+          <span className={`text-sm font-bold ${d.date === activeDate ? 'text-teal-700' : 'text-ink-700'}`}>{d.num}</span>
           {d.complete ? <span className="text-[10px] text-teal-500">●</span>
             : d.overdue ? <span className="text-[10px] text-amber-500">●</span>
-            : d.isFuture && d.total > 0 ? <span className="text-[10px] text-purple-500">●</span>
-            : d.isFuture ? <span className="text-[10px] text-gray-300">+</span>
+            : d.isFuture && d.total > 0 ? <span className="text-[10px] text-violet-500">●</span>
+            : d.isFuture ? <span className="text-[10px] text-ink-400">+</span>
             : <span className="text-[10px] text-transparent">·</span>}
         </button>
       ))}
@@ -338,31 +365,31 @@ function CalendarStrip({ activeDate, tasksByDate, onSelect }: { activeDate: stri
 function TaskCard({ task, cat, isFuture, onToggle, onEdit, onDelete }: any) {
   return (
     <motion.div layout initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
-      className={`flex items-start gap-3 bg-white border rounded-xl p-3 transition-all ${task.done ? 'border-teal-200 opacity-70' : 'border-gray-100'}`}
+      className={`flex items-start gap-3 bg-white border rounded-xl p-3 transition-all ${task.done ? 'border-teal-200 opacity-70' : 'border-line'}`}
       style={{ borderLeftWidth: 3, borderLeftColor: cat.borderColor }}>
       <button onClick={onToggle} disabled={isFuture} role="checkbox" aria-checked={task.done}
         aria-label={task.done ? 'Décocher' : 'Cocher'}
         className={`mt-0.5 w-6 h-6 rounded-lg border-2 flex items-center justify-center shrink-0 transition-all disabled:opacity-30 ${
-          task.done ? 'bg-teal-500 border-teal-500 text-white' : 'border-gray-300 hover:border-teal-400'
+          task.done ? 'bg-teal-500 border-teal-500 text-white' : 'border-line hover:border-teal-400'
         }`}>
-        {task.done && '✓'}
+        {task.done && <Check size={14} strokeWidth={3} />}
       </button>
       <div className="flex-1 min-w-0">
-        <p className={`text-sm font-semibold ${task.done ? 'line-through text-gray-400' : 'text-gray-800'}`}>{task.title}</p>
+        <p className={`text-sm font-semibold ${task.done ? 'line-through text-ink-400' : 'text-ink-700'}`}>{task.title}</p>
         <div className="flex items-center gap-2 flex-wrap mt-1">
-          {task.timeSlot && <span className="text-xs text-gray-500">🕐 {task.timeSlot}</span>}
-          <span className="text-xs text-gray-400">⏱ {task.duration}min</span>
-          <span className={`text-xs px-1.5 rounded-full ${task.priority === 'high' ? 'bg-purple-100 text-purple-700' : task.priority === 'med' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
+          {task.timeSlot && <span className="text-xs text-ink-500 flex items-center gap-1"><Clock size={14} strokeWidth={2} /> {task.timeSlot}</span>}
+          <span className="text-xs text-ink-400 flex items-center gap-1"><Timer size={14} strokeWidth={2} /> {task.duration}min</span>
+          <span className={`text-xs px-1.5 rounded-full ${task.priority === 'high' ? 'bg-violet-100 text-violet-700' : task.priority === 'med' ? 'bg-teal-100 text-teal-700' : 'bg-surface-muted text-ink-500'}`}>
             {PRIORITY_LABEL[task.priority as keyof typeof PRIORITY_LABEL]}
           </span>
-          <span className="text-xs text-purple-500 font-bold">+{task.xp} XP</span>
-          {isFuture && <span className="text-xs bg-purple-100 text-purple-600 px-1.5 rounded-full font-bold">FUTUR</span>}
+          <span className="text-xs text-violet-500 font-bold">+{task.xp} XP</span>
+          {isFuture && <span className="text-xs bg-violet-100 text-violet-600 px-1.5 rounded-full font-bold">FUTUR</span>}
         </div>
-        {task.note && <p className="text-xs text-gray-400 italic mt-1">{task.note}</p>}
+        {task.note && <p className="text-xs text-ink-400 italic mt-1">{task.note}</p>}
       </div>
-      <div className="flex flex-col gap-1 shrink-0">
-        <button onClick={onEdit} aria-label="Modifier" className="text-gray-300 hover:text-teal-500 text-sm">✏️</button>
-        <button onClick={onDelete} aria-label="Supprimer" className="text-gray-300 hover:text-red-400 text-sm">🗑️</button>
+      <div className="flex flex-col gap-1.5 shrink-0">
+        <button onClick={onEdit} aria-label="Modifier" className="text-ink-400 hover:text-teal-500"><Pencil size={16} strokeWidth={2} /></button>
+        <button onClick={onDelete} aria-label="Supprimer" className="text-ink-400 hover:text-red-500"><Trash2 size={16} strokeWidth={2} /></button>
       </div>
     </motion.div>
   );
@@ -402,38 +429,40 @@ function AddTaskModal({ task, onSave, onClose }: { task: Task | null; onSave: (d
   return (
     <motion.div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4"
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
-      <motion.div className="bg-white rounded-3xl w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto"
+      <motion.div className="bg-white rounded-3xl w-full max-w-md shadow-card max-h-[90vh] overflow-y-auto"
         initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }}
         onClick={e => e.stopPropagation()}>
         <div className="p-5">
-          <h3 className="font-black text-gray-900 text-lg mb-4">{task ? '✏️ Modifier' : '➕ Nouvelle tâche'}</h3>
+          <h3 className="font-black text-ink-900 text-lg mb-4 flex items-center gap-2">
+            {task ? <><Pencil size={20} strokeWidth={2} /> Modifier</> : <><Plus size={20} strokeWidth={2.5} /> Nouvelle tâche</>}
+          </h3>
 
           <input value={title} onChange={e => { setTitle(e.target.value); setFamilyTemplate(null); }} autoFocus placeholder="Que dois-tu faire ?"
-            className="w-full border-2 border-gray-200 focus:border-teal-400 rounded-xl px-4 py-3 text-sm outline-none mb-3" />
+            className="w-full border-2 border-line focus:border-teal-400 rounded-xl px-4 py-3 text-sm outline-none mb-3" />
 
           {/* Catégorie */}
-          <p className="text-xs font-bold text-gray-400 uppercase mb-2">Catégorie</p>
+          <p className="text-xs font-bold text-ink-400 uppercase mb-2">Catégorie</p>
           <div className="grid grid-cols-2 gap-2 mb-2">
             {Object.entries(CATEGORIES).map(([key, c]) => (
               <button key={key} onClick={() => changeCategory(key)}
-                className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold border-2 transition-all ${category === key ? 'border-transparent' : 'border-gray-200 text-gray-600'}`}
+                className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold border-2 transition-all ${category === key ? 'border-transparent' : 'border-line text-ink-500'}`}
                 style={category === key ? { background: c.color, color: c.textColor } : {}}>
                 {c.emoji} {c.label}
               </button>
             ))}
           </div>
-          <p className="text-xs text-gray-400 italic mb-3">💡 {cat.tip}</p>
+          <p className="text-xs text-ink-400 italic mb-3 flex items-center gap-1.5"><Lightbulb size={14} strokeWidth={2} /> {cat.tip}</p>
 
           {/* Suggestions rapides (1 clic = pré-remplie) */}
           {suggestions.length > 0 && (
             <div className="mb-3">
-              <p className="text-xs font-bold text-gray-400 uppercase mb-2">{isFamily ? '👋 Choisis une action' : '⚡ Suggestions rapides'}</p>
+              <p className="text-xs font-bold text-ink-400 uppercase mb-2">{isFamily ? 'Choisis une action' : 'Suggestions rapides'}</p>
               <div className="flex flex-wrap gap-1.5">
                 {suggestions.map((s, i) => {
                   const active = isFamily ? familyTemplate === (s.template || `${s.title} {nom}`) : title === s.title;
                   return (
                     <button key={i} onClick={() => applySuggestion(s)}
-                      className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all ${active ? 'border-transparent text-white' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+                      className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all ${active ? 'border-transparent text-white' : 'border-line text-ink-500 hover:bg-surface-soft'}`}
                       style={active ? { background: cat.borderColor } : {}}>
                       {s.title}
                     </button>
@@ -446,7 +475,7 @@ function AddTaskModal({ task, onSave, onClose }: { task: Task | null; onSave: (d
           {/* Nom de la personne (Famille & amis) */}
           {isFamily && familyTemplate && (
             <div className="mb-3 rounded-xl p-3" style={{ background: '#FCE8E4' }}>
-              <p className="text-xs font-bold mb-1" style={{ color: '#8A2F1D' }}>👤 Nom de la personne</p>
+              <p className="text-xs font-bold mb-1 flex items-center gap-1.5" style={{ color: '#8A2F1D' }}><User size={14} strokeWidth={2} /> Nom de la personne</p>
               <input value={personName} onChange={e => setPersonName(e.target.value)} autoFocus placeholder="Ex: Maman, Ahmed, Sara..."
                 className="w-full border-2 rounded-xl px-3 py-2 text-sm outline-none" style={{ borderColor: '#F0BFB3' }} />
               {personName.trim() && <p className="text-xs mt-1.5 font-semibold" style={{ color: '#8A2F1D' }}>→ {finalTitle}</p>}
@@ -454,11 +483,11 @@ function AddTaskModal({ task, onSave, onClose }: { task: Task | null; onSave: (d
           )}
 
           {/* Priorité */}
-          <p className="text-xs font-bold text-gray-400 uppercase mb-2">Priorité</p>
+          <p className="text-xs font-bold text-ink-400 uppercase mb-2">Priorité</p>
           <div className="grid grid-cols-3 gap-2 mb-3">
             {(['high', 'med', 'low'] as const).map(p => (
               <button key={p} onClick={() => setPriority(p)}
-                className={`py-2 rounded-xl text-sm font-bold transition-all ${priority === p ? 'bg-teal-500 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                className={`py-2 rounded-xl text-sm font-bold transition-all ${priority === p ? 'bg-teal-500 text-white' : 'bg-surface-muted text-ink-500'}`}>
                 {PRIORITY_LABEL[p]}
               </button>
             ))}
@@ -467,12 +496,12 @@ function AddTaskModal({ task, onSave, onClose }: { task: Task | null; onSave: (d
           {/* Heure + durée */}
           <div className="grid grid-cols-2 gap-3 mb-3">
             <div>
-              <p className="text-xs font-bold text-gray-400 uppercase mb-2">Heure</p>
+              <p className="text-xs font-bold text-ink-400 uppercase mb-2">Heure</p>
               <input type="time" value={timeSlot} onChange={e => setTimeSlot(e.target.value)}
-                className="w-full border-2 border-gray-200 focus:border-teal-400 rounded-xl px-3 py-2 text-sm outline-none" />
+                className="w-full border-2 border-line focus:border-teal-400 rounded-xl px-3 py-2 text-sm outline-none" />
             </div>
             <div>
-              <p className="text-xs font-bold text-gray-400 uppercase mb-2">Durée : {duration}min</p>
+              <p className="text-xs font-bold text-ink-400 uppercase mb-2">Durée : {duration}min</p>
               <input type="range" min="5" max="180" step="5" value={duration}
                 onChange={e => setDuration(Number(e.target.value))} className="w-full accent-teal-500 mt-2.5" />
             </div>
@@ -481,16 +510,16 @@ function AddTaskModal({ task, onSave, onClose }: { task: Task | null; onSave: (d
           {/* Note */}
           <textarea value={note} onChange={e => setNote(e.target.value.slice(0, 200))} rows={2}
             placeholder="Note (optionnel)..."
-            className="w-full border-2 border-gray-200 focus:border-teal-400 rounded-xl px-3 py-2 text-sm outline-none resize-none mb-3" />
+            className="w-full border-2 border-line focus:border-teal-400 rounded-xl px-3 py-2 text-sm outline-none resize-none mb-3" />
 
           {/* XP */}
-          <div className="bg-purple-50 rounded-xl px-4 py-2 mb-4 text-center">
-            <span className="text-purple-700 font-black">+{xp} XP</span>
-            <span className="text-purple-400 text-xs ml-1">à la complétion</span>
+          <div className="bg-violet-50 rounded-xl px-4 py-2 mb-4 text-center">
+            <span className="text-violet-700 font-black">+{xp} XP</span>
+            <span className="text-violet-400 text-xs ml-1">à la complétion</span>
           </div>
 
           <div className="flex gap-3">
-            <button onClick={onClose} className="flex-1 border-2 border-gray-200 text-gray-600 font-bold py-3 rounded-xl hover:bg-gray-50 text-sm">Annuler</button>
+            <button onClick={onClose} className="flex-1 border-2 border-line text-ink-500 font-bold py-3 rounded-xl hover:bg-surface-soft text-sm">Annuler</button>
             <button onClick={() => canSave && onSave({ title: finalTitle, category, priority, duration, timeSlot, note, xp })}
               disabled={!canSave}
               className="flex-1 bg-teal-500 hover:bg-teal-600 disabled:opacity-40 text-white font-black py-3 rounded-xl text-sm">
@@ -508,27 +537,27 @@ function RewardsPanel({ profile, onClose }: { profile: any; onClose: () => void 
   return (
     <motion.div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
-      <motion.div className="bg-white rounded-3xl w-full max-w-md shadow-2xl max-h-[85vh] overflow-y-auto"
+      <motion.div className="bg-white rounded-3xl w-full max-w-md shadow-card max-h-[85vh] overflow-y-auto"
         initial={{ scale: 0.94 }} animate={{ scale: 1 }} exit={{ scale: 0.94 }} onClick={e => e.stopPropagation()}>
         <div className="p-5">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-black text-gray-900 text-lg">🏆 Mes récompenses</h3>
-            <button onClick={onClose} className="text-gray-400 text-xl">✕</button>
+            <h3 className="font-black text-ink-900 text-lg flex items-center gap-2"><Trophy size={20} strokeWidth={2} className="text-amber-500" /> Mes récompenses</h3>
+            <button onClick={onClose} aria-label="Fermer" className="text-ink-400 hover:text-ink-700"><X size={20} strokeWidth={2} /></button>
           </div>
-          <div className="bg-gradient-to-br from-purple-500 to-teal-500 rounded-2xl p-4 text-white text-center mb-4">
+          <div className="bg-teal-500 rounded-2xl p-4 text-white text-center mb-4">
             <p className="text-3xl font-black">Niveau {profile.level}</p>
             <p className="text-sm opacity-90">{levelTitle(profile.level)}</p>
-            <p className="text-xs opacity-75 mt-1">{profile.totalXP} XP · 🔥 {profile.streak} jours</p>
+            <p className="text-xs opacity-75 mt-1 flex items-center justify-center gap-1">{profile.totalXP} XP · <Flame size={12} strokeWidth={2} /> {profile.streak} jours</p>
           </div>
-          <p className="text-xs font-bold text-gray-400 uppercase mb-2">Badges ({profile.earnedBadges.length}/{BADGES.length})</p>
+          <p className="text-xs font-bold text-ink-400 uppercase mb-2">Badges ({profile.earnedBadges.length}/{BADGES.length})</p>
           <div className="grid grid-cols-2 gap-2">
             {BADGES.map(b => {
               const earned = profile.earnedBadges.includes(b.id);
               return (
-                <div key={b.id} className={`rounded-xl p-3 border ${earned ? 'bg-amber-50 border-amber-200' : 'bg-gray-50 border-gray-100 opacity-50'}`}>
-                  <p className="text-2xl mb-1">{earned ? b.emoji : '🔒'}</p>
-                  <p className="text-xs font-bold text-gray-800">{b.label}</p>
-                  <p className="text-xs text-gray-400">{b.description}</p>
+                <div key={b.id} className={`rounded-xl p-3 border ${earned ? 'bg-amber-400/10 border-amber-400/40' : 'bg-surface-soft border-line opacity-50'}`}>
+                  <p className="text-2xl mb-1">{earned ? b.emoji : <Lock size={20} strokeWidth={2} className="text-ink-400" />}</p>
+                  <p className="text-xs font-bold text-ink-700">{b.label}</p>
+                  <p className="text-xs text-ink-400">{b.description}</p>
                 </div>
               );
             })}
@@ -544,15 +573,17 @@ function LevelUpModal({ level, badge, onClose }: { level: number; badge: string 
   return (
     <motion.div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4"
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
-      <motion.div className="bg-white rounded-3xl p-8 text-center max-w-xs w-full shadow-2xl"
+      <motion.div className="bg-white rounded-3xl p-8 text-center max-w-xs w-full shadow-card"
         initial={{ scale: 0.7, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.7 }}
         transition={{ type: 'spring', damping: 12 }} onClick={e => e.stopPropagation()}>
         <motion.div initial={{ scale: 0 }} animate={{ scale: 1, rotate: [0, 10, -10, 0] }} transition={{ delay: 0.1 }}
-          className="text-6xl mb-3">{badge ? '🎖️' : '🎉'}</motion.div>
-        <h3 className="text-2xl font-black text-gray-900 mb-1">{badge ? 'Badge débloqué !' : `Niveau ${level} !`}</h3>
-        <p className="text-gray-500 mb-1">{badge ? badge : levelTitle(level)}</p>
-        <p className="text-gray-400 text-sm mb-6">{badge ? 'Continue comme ça 💜' : 'Ton cerveau TDAH progresse !'}</p>
-        <button onClick={onClose} className="w-full bg-teal-500 text-white font-black py-3 rounded-2xl hover:bg-teal-600">Super ! 🚀</button>
+          className="mb-3 flex justify-center">
+          {badge ? <Medal size={56} strokeWidth={1.5} className="text-amber-500" /> : <Sparkles size={56} strokeWidth={1.5} className="text-teal-500" />}
+        </motion.div>
+        <h3 className="text-2xl font-black text-ink-900 mb-1">{badge ? 'Badge débloqué !' : `Niveau ${level} !`}</h3>
+        <p className="text-ink-500 mb-1">{badge ? badge : levelTitle(level)}</p>
+        <p className="text-ink-400 text-sm mb-6">{badge ? 'Continue comme ça' : 'Ton cerveau TDAH progresse !'}</p>
+        <button onClick={onClose} className="w-full bg-teal-500 text-white font-black py-3 rounded-2xl hover:bg-teal-600 flex items-center justify-center gap-2">Super ! <Rocket size={18} strokeWidth={2} /></button>
       </motion.div>
     </motion.div>
   );
@@ -602,8 +633,8 @@ function PrayerBanner({ date, settings, doneKeys, onTimings, onOpenSettings }: {
   if (!settings.enabled) {
     return (
       <button onClick={onOpenSettings}
-        className="w-full mb-3 text-xs text-emerald-700 font-semibold bg-emerald-50 border border-emerald-100 rounded-xl py-2 hover:bg-emerald-100">
-        🕌 Afficher les horaires de prière
+        className="w-full mb-3 flex items-center justify-center gap-1.5 text-xs text-teal-700 font-semibold bg-teal-50 border border-teal-100 rounded-xl py-2 hover:bg-teal-100">
+        <Landmark size={14} strokeWidth={2} /> Afficher les horaires de prière
       </button>
     );
   }
@@ -614,18 +645,18 @@ function PrayerBanner({ date, settings, doneKeys, onTimings, onOpenSettings }: {
     <div className="mb-3 rounded-2xl border p-3" style={{ background: '#E7F4EE', borderColor: '#C5E6D5' }}>
       <div className="flex items-center justify-between mb-2 gap-2">
         <button onClick={onOpenSettings} className="flex items-center gap-1.5 text-sm font-black" style={{ color: '#14573A' }}>
-          🕌 Prières · {settings.city} <span className="text-xs opacity-60">⚙️</span>
+          <Landmark size={16} strokeWidth={2} /> Prières · {settings.city} <Settings size={13} strokeWidth={2} className="opacity-60" />
         </button>
-        {loading && <span className="text-xs text-gray-400">Chargement…</span>}
+        {loading && <span className="text-xs text-ink-400">Chargement…</span>}
         {isToday && nextKey && !loading && (
-          <span className="text-xs font-bold shrink-0" style={{ color: '#14573A' }}>
-            ⏳ {nextKey} {countdown === 'demain' ? 'demain' : `dans ${countdown}`}
+          <span className="text-xs font-bold shrink-0 flex items-center gap-1" style={{ color: '#14573A' }}>
+            <Hourglass size={13} strokeWidth={2} /> {nextKey} {countdown === 'demain' ? 'demain' : `dans ${countdown}`}
           </span>
         )}
       </div>
 
       {error ? (
-        <p className="text-xs text-gray-500">Horaires indisponibles — vérifie la ville dans ⚙️</p>
+        <p className="text-xs text-ink-500 flex items-center gap-1">Horaires indisponibles — vérifie la ville dans <Settings size={13} strokeWidth={2} /></p>
       ) : (
         <div className="grid grid-cols-5 gap-1.5">
           {PRAYERS.map(p => {
@@ -635,11 +666,11 @@ function PrayerBanner({ date, settings, doneKeys, onTimings, onOpenSettings }: {
             const isDone = doneKeys[p.key];
             return (
               <div key={p.key}
-                className={`rounded-xl px-1 py-1.5 text-center border ${isNext ? 'border-emerald-500 bg-white' : 'border-transparent bg-white/60'}`}>
-                <p className={`text-[11px] font-bold leading-tight ${isPassed && !isDone ? 'text-gray-400' : 'text-emerald-800'}`}>
-                  {isDone ? '✓ ' : ''}{p.label}
+                className={`rounded-xl px-1 py-1.5 text-center border ${isNext ? 'border-teal-500 bg-white' : 'border-transparent bg-white/60'}`}>
+                <p className={`text-[11px] font-bold leading-tight flex items-center justify-center gap-0.5 ${isPassed && !isDone ? 'text-ink-400' : 'text-teal-800'}`}>
+                  {isDone && <Check size={11} strokeWidth={3} />}{p.label}
                 </p>
-                <p className={`text-[11px] leading-tight ${isNext ? 'font-black text-emerald-700' : 'text-gray-500'}`}>{t || '--:--'}</p>
+                <p className={`text-[11px] leading-tight ${isNext ? 'font-black text-teal-700' : 'text-ink-500'}`}>{t || '--:--'}</p>
               </div>
             );
           })}
@@ -663,29 +694,29 @@ function PrayerSettingsModal({ settings, onSave, onClose }: {
   return (
     <motion.div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4"
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
-      <motion.div className="bg-white rounded-3xl w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto"
+      <motion.div className="bg-white rounded-3xl w-full max-w-md shadow-card max-h-[90vh] overflow-y-auto"
         initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }}
         onClick={e => e.stopPropagation()}>
         <div className="p-5">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-black text-gray-900 text-lg">🕌 Réglages des prières</h3>
-            <button onClick={onClose} className="text-gray-400 text-xl">✕</button>
+            <h3 className="font-black text-ink-900 text-lg flex items-center gap-2"><Landmark size={20} strokeWidth={2} /> Réglages des prières</h3>
+            <button onClick={onClose} aria-label="Fermer" className="text-ink-400 hover:text-ink-700"><X size={20} strokeWidth={2} /></button>
           </div>
 
-          <label className="flex items-center justify-between py-2.5 border-b border-gray-100 cursor-pointer">
-            <span className="text-sm font-semibold text-gray-700">Afficher le bandeau des prières</span>
-            <input type="checkbox" checked={enabled} onChange={e => setEnabled(e.target.checked)} className="w-5 h-5 accent-emerald-500" />
+          <label className="flex items-center justify-between py-2.5 border-b border-line cursor-pointer">
+            <span className="text-sm font-semibold text-ink-700">Afficher le bandeau des prières</span>
+            <input type="checkbox" checked={enabled} onChange={e => setEnabled(e.target.checked)} className="w-5 h-5 accent-teal-500" />
           </label>
-          <label className="flex items-center justify-between py-2.5 border-b border-gray-100 cursor-pointer mb-3">
-            <span className="text-sm font-semibold text-gray-700">Ajouter les 5 prières automatiquement</span>
-            <input type="checkbox" checked={autoAdd} onChange={e => setAutoAdd(e.target.checked)} className="w-5 h-5 accent-emerald-500" />
+          <label className="flex items-center justify-between py-2.5 border-b border-line cursor-pointer mb-3">
+            <span className="text-sm font-semibold text-ink-700">Ajouter les 5 prières automatiquement</span>
+            <input type="checkbox" checked={autoAdd} onChange={e => setAutoAdd(e.target.checked)} className="w-5 h-5 accent-teal-500" />
           </label>
 
-          <p className="text-xs font-bold text-gray-400 uppercase mb-2">Ville</p>
+          <p className="text-xs font-bold text-ink-400 uppercase mb-2">Ville</p>
           <div className="flex flex-wrap gap-1.5 mb-3">
             {PRAYER_CITIES.map(c => (
               <button key={c.city} onClick={() => { setCity(c.city); setCountry(c.country); }}
-                className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all ${city === c.city ? 'bg-emerald-500 text-white border-transparent' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all ${city === c.city ? 'bg-teal-500 text-white border-transparent' : 'border-line text-ink-500 hover:bg-surface-soft'}`}>
                 {c.city}
               </button>
             ))}
@@ -693,22 +724,22 @@ function PrayerSettingsModal({ settings, onSave, onClose }: {
 
           <div className="grid grid-cols-2 gap-3 mb-4">
             <div>
-              <p className="text-xs font-bold text-gray-400 uppercase mb-1">Ville</p>
+              <p className="text-xs font-bold text-ink-400 uppercase mb-1">Ville</p>
               <input value={city} onChange={e => setCity(e.target.value)} placeholder="Marrakech"
-                className="w-full border-2 border-gray-200 focus:border-emerald-400 rounded-xl px-3 py-2 text-sm outline-none" />
+                className="w-full border-2 border-line focus:border-teal-400 rounded-xl px-3 py-2 text-sm outline-none" />
             </div>
             <div>
-              <p className="text-xs font-bold text-gray-400 uppercase mb-1">Pays</p>
+              <p className="text-xs font-bold text-ink-400 uppercase mb-1">Pays</p>
               <input value={country} onChange={e => setCountry(e.target.value)} placeholder="Morocco"
-                className="w-full border-2 border-gray-200 focus:border-emerald-400 rounded-xl px-3 py-2 text-sm outline-none" />
+                className="w-full border-2 border-line focus:border-teal-400 rounded-xl px-3 py-2 text-sm outline-none" />
             </div>
           </div>
 
-          <p className="text-xs text-gray-400 italic mb-4">📍 Horaires officiels (méthode Maroc · Ministère des Habous). En anglais : Morocco, France, Belgium, Canada…</p>
+          <p className="text-xs text-ink-400 italic mb-4 flex items-start gap-1.5"><MapPin size={14} strokeWidth={2} className="shrink-0 mt-0.5" /> Horaires officiels (méthode Maroc · Ministère des Habous). En anglais : Morocco, France, Belgium, Canada…</p>
 
           <div className="flex gap-3">
-            <button onClick={onClose} className="flex-1 border-2 border-gray-200 text-gray-600 font-bold py-3 rounded-xl hover:bg-gray-50 text-sm">Annuler</button>
-            <button onClick={save} className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-black py-3 rounded-xl text-sm">Enregistrer</button>
+            <button onClick={onClose} className="flex-1 border-2 border-line text-ink-500 font-bold py-3 rounded-xl hover:bg-surface-soft text-sm">Annuler</button>
+            <button onClick={save} className="flex-1 bg-teal-500 hover:bg-teal-600 text-white font-black py-3 rounded-xl text-sm">Enregistrer</button>
           </div>
         </div>
       </motion.div>

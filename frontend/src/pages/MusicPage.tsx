@@ -7,6 +7,10 @@
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import {
+  Music, Dices, BrainCircuit, Clock, Star, Waves, Volume1, Timer, Coffee,
+  Target, Play, Pause, RotateCcw, Lightbulb,
+} from 'lucide-react';
 import { ADHD_PLAYLISTS, CATEGORIES, Playlist } from '../data/adhdPlaylists';
 import { useColoredNoise } from '../hooks/useColoredNoise';
 
@@ -139,23 +143,23 @@ export default function MusicPage() {
   const playlists = ADHD_PLAYLISTS.filter(p => p.category === category);
 
   return (
-    <div className="h-full overflow-y-auto bg-gray-50">
+    <div className="h-full overflow-y-auto bg-surface-soft">
       <div className="max-w-5xl mx-auto px-5 py-6 pb-28">
 
         {/* Header */}
         <div className="flex items-center justify-between mb-5">
           <div>
-            <h1 className="text-2xl font-black text-gray-900">🎵 Musique Focus TDAH</h1>
-            <p className="text-gray-500 text-sm">Trouve ton ambiance idéale de concentration (Spotify)</p>
+            <h1 className="text-2xl font-black text-ink-900 flex items-center gap-2"><Music size={24} strokeWidth={2} className="text-teal-600" /> Musique Focus TDAH</h1>
+            <p className="text-ink-500 text-sm">Trouve ton ambiance idéale de concentration (Spotify)</p>
           </div>
           <div className="flex gap-2">
             <button onClick={surpriseMe}
-              className="bg-gradient-to-r from-purple-500 to-teal-500 text-white font-bold px-4 py-2 rounded-xl text-sm hover:shadow-lg transition-all">
-              🎲 Surprise-moi
+              className="bg-teal-500 text-white font-bold px-4 py-2 rounded-xl text-sm hover:bg-teal-600 transition-colors flex items-center gap-1.5">
+              <Dices size={18} strokeWidth={2} /> Surprise-moi
             </button>
             <button onClick={() => { setShowQuiz(true); setQuizStep(0); }}
-              className="bg-white border-2 border-gray-200 text-gray-600 font-bold px-4 py-2 rounded-xl text-sm hover:border-teal-300">
-              🧠 Mon profil
+              className="bg-white border-2 border-line text-ink-500 font-bold px-4 py-2 rounded-xl text-sm hover:border-teal-300 flex items-center gap-1.5">
+              <BrainCircuit size={18} strokeWidth={2} /> Mon profil
             </button>
           </div>
         </div>
@@ -163,13 +167,13 @@ export default function MusicPage() {
         {/* Historique */}
         {history.length > 0 && (
           <div className="mb-5">
-            <p className="text-xs font-bold text-gray-400 uppercase mb-2">🕐 Récemment écouté</p>
+            <p className="text-xs font-bold text-ink-400 uppercase mb-2 flex items-center gap-1.5"><Clock size={14} strokeWidth={2} /> Récemment écouté</p>
             <div className="flex gap-2 overflow-x-auto pb-1">
               {history.map(h => (
                 <button key={h.id} onClick={() => { setCategory(h.category); play(h); }}
-                  className="flex items-center gap-2 shrink-0 bg-white border border-gray-200 rounded-xl px-3 py-2 hover:border-teal-300 transition-colors">
+                  className="flex items-center gap-2 shrink-0 bg-white border border-line rounded-xl px-3 py-2 hover:border-teal-300 transition-colors">
                   <span className="text-lg">{h.emoji}</span>
-                  <span className="text-xs font-semibold text-gray-700 max-w-[140px] truncate">{h.name}</span>
+                  <span className="text-xs font-semibold text-ink-700 max-w-[140px] truncate">{h.name}</span>
                 </button>
               ))}
             </div>
@@ -181,32 +185,33 @@ export default function MusicPage() {
           {Object.entries(CATEGORIES).map(([key, meta]) => (
             <button key={key} onClick={() => setCategory(key)}
               className={`flex items-center gap-2 shrink-0 px-4 py-2.5 rounded-xl font-bold text-sm transition-all border-2 ${
-                category === key ? 'border-transparent shadow-md' : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+                category === key ? 'border-transparent shadow-card' : 'border-line bg-white text-ink-500 hover:border-ink-400'
               }`}
               style={category === key ? { background: meta.color, color: meta.textColor } : {}}>
               <span>{meta.emoji}</span>{meta.label}
-              {recommended.includes(key) && <span className="text-xs">⭐</span>}
+              {recommended.includes(key) && <Star size={13} strokeWidth={2} className="fill-current" />}
             </button>
           ))}
         </div>
 
         {/* Conseil TDAH de la catégorie */}
-        <div className="rounded-xl px-4 py-3 mb-5 text-sm" style={{ background: catMeta.color, color: catMeta.textColor }}>
-          💡 <strong>{catMeta.label}</strong> — {catMeta.tip}
+        <div className="rounded-xl px-4 py-3 mb-5 text-sm flex items-center gap-2" style={{ background: catMeta.color, color: catMeta.textColor }}>
+          <Lightbulb size={16} strokeWidth={2} className="shrink-0" />
+          <span><strong>{catMeta.label}</strong> — {catMeta.tip}</span>
         </div>
 
         {/* Outils rapides : bruits colorés + Pomodoro */}
         <div className="grid md:grid-cols-2 gap-4 mb-6">
           {/* Mixer bruits colorés */}
-          <div className="bg-white border border-gray-100 rounded-2xl p-4">
-            <p className="font-black text-gray-900 text-sm mb-1">🌫️ Bruits colorés</p>
-            <p className="text-xs text-gray-400 mb-3">Généré en direct · combine avec la musique</p>
+          <div className="bg-white border border-line rounded-2xl p-4">
+            <p className="font-black text-ink-900 text-sm mb-1 flex items-center gap-1.5"><Waves size={16} strokeWidth={2} /> Bruits colorés</p>
+            <p className="text-xs text-ink-400 mb-3">Généré en direct · combine avec la musique</p>
             <div className="space-y-2">
               {NOISE_LAYERS.map(layer => (
                 <div key={layer.id} className="flex items-center gap-2">
                   <button onClick={() => toggleNoise(layer.color, noiseVol)}
                     className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-bold transition-colors flex-1 ${
-                      activeColor === layer.color ? 'bg-teal-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      activeColor === layer.color ? 'bg-teal-500 text-white' : 'bg-surface-muted text-ink-500 hover:bg-line'
                     }`}>
                     <span>{layer.emoji}</span>{layer.label}
                     {activeColor === layer.color && <span className="ml-auto">●</span>}
@@ -216,11 +221,11 @@ export default function MusicPage() {
             </div>
             {activeColor && (
               <div className="flex items-center gap-2 mt-3">
-                <span className="text-xs">🔉</span>
+                <Volume1 size={16} strokeWidth={2} className="text-ink-400" />
                 <input type="range" min="0" max="100" value={noiseVol}
                   onChange={e => { const v = Number(e.target.value); setNoiseVol(v); setNoiseVolume(v / 100); }}
                   className="flex-1 accent-teal-500" />
-                <span className="text-xs text-gray-400 w-8">{noiseVol}%</span>
+                <span className="text-xs text-ink-400 w-8">{noiseVol}%</span>
               </div>
             )}
           </div>
@@ -233,7 +238,7 @@ export default function MusicPage() {
         <div className="grid sm:grid-cols-2 gap-4">
           {playlists.map(pl => (
             <motion.div key={pl.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-              className="bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm">
+              className="bg-white border border-line rounded-2xl overflow-hidden shadow-card">
               <div className="p-4" style={{ background: pl.color }}>
                 <div className="flex items-start gap-3">
                   <span className="text-3xl">{pl.emoji}</span>
@@ -242,7 +247,7 @@ export default function MusicPage() {
                     <p className="text-xs opacity-70" style={{ color: pl.textColor }}>{pl.desc}</p>
                   </div>
                 </div>
-                <p className="text-xs mt-2 opacity-80" style={{ color: pl.textColor }}>💡 {pl.tips}</p>
+                <p className="text-xs mt-2 opacity-80 flex items-center gap-1.5" style={{ color: pl.textColor }}><Lightbulb size={13} strokeWidth={2} className="shrink-0" /> {pl.tips}</p>
               </div>
               {playing?.id === pl.id ? (
                 <iframe
@@ -259,15 +264,15 @@ export default function MusicPage() {
                   className={`w-full py-3 text-sm font-bold transition-colors flex items-center justify-center gap-2 ${
                     pl.source === 'youtube' ? 'text-[#FF0000] hover:bg-red-50' : 'text-[#1DB954] hover:bg-green-50'
                   }`}>
-                  ▶ Écouter sur {pl.source === 'youtube' ? 'YouTube' : 'Spotify'}
+                  <Play size={16} strokeWidth={2} className="fill-current" /> Écouter sur {pl.source === 'youtube' ? 'YouTube' : 'Spotify'}
                 </button>
               )}
             </motion.div>
           ))}
         </div>
 
-        <p className="text-center text-xs text-gray-300 mt-6">
-          🎵 Lecture via Spotify · 🌫️ Bruits générés en direct (WebAudio) · Aucune donnée stockée
+        <p className="text-center text-xs text-ink-400 mt-6 flex items-center justify-center gap-1.5 flex-wrap">
+          <Music size={13} strokeWidth={2} /> Lecture via Spotify · <Waves size={13} strokeWidth={2} /> Bruits générés en direct (WebAudio) · Aucune donnée stockée
         </p>
       </div>
 
@@ -276,27 +281,27 @@ export default function MusicPage() {
         {showQuiz && (
           <motion.div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <motion.div className="bg-white rounded-3xl w-full max-w-md shadow-2xl p-6"
+            <motion.div className="bg-white rounded-3xl w-full max-w-md shadow-card p-6"
               initial={{ scale: 0.94, y: 12 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.94 }}>
               <div className="text-center mb-5">
-                <p className="text-3xl mb-2">🧠</p>
-                <h3 className="font-black text-gray-900 text-lg">{QUIZ[quizStep].q}</h3>
-                <p className="text-xs text-gray-400 mt-1">Question {quizStep + 1}/{QUIZ.length}</p>
+                <div className="flex justify-center mb-2"><BrainCircuit size={32} strokeWidth={1.5} className="text-teal-600" /></div>
+                <h3 className="font-black text-ink-900 text-lg">{QUIZ[quizStep].q}</h3>
+                <p className="text-xs text-ink-400 mt-1">Question {quizStep + 1}/{QUIZ.length}</p>
               </div>
               <div className="grid grid-cols-1 gap-2">
                 {QUIZ[quizStep].opts.map(opt => (
                   <button key={opt.v} onClick={() => answerQuiz(opt.v, opt.cats)}
-                    className="text-left bg-gray-50 hover:bg-teal-50 hover:text-teal-700 border-2 border-gray-200 hover:border-teal-300 rounded-xl px-4 py-3 font-semibold text-gray-700 transition-all">
+                    className="text-left bg-surface-soft hover:bg-teal-50 hover:text-teal-700 border-2 border-line hover:border-teal-300 rounded-xl px-4 py-3 font-semibold text-ink-700 transition-all">
                     {opt.label}
                   </button>
                 ))}
               </div>
               {/* Barre progression */}
-              <div className="w-full bg-gray-100 rounded-full h-1.5 mt-5">
+              <div className="w-full bg-surface-muted rounded-full h-1.5 mt-5">
                 <div className="bg-teal-500 h-1.5 rounded-full transition-all" style={{ width: `${((quizStep + 1) / QUIZ.length) * 100}%` }} />
               </div>
               <button onClick={() => { setShowQuiz(false); setQuizStep(0); }}
-                className="w-full text-gray-400 text-xs mt-3 hover:text-gray-600">Passer le quiz</button>
+                className="w-full text-ink-400 text-xs mt-3 hover:text-ink-700">Passer le quiz</button>
             </motion.div>
           </motion.div>
         )}
@@ -334,26 +339,26 @@ function PomodoroCard({ show, onToggle }: { show: boolean; onToggle: () => void 
   const reset = () => { setRunning(false); setIsBreak(false); setSeconds(25 * 60); };
 
   return (
-    <div className="bg-white border border-gray-100 rounded-2xl p-4">
+    <div className="bg-white border border-line rounded-2xl p-4">
       <div className="flex items-center justify-between mb-1">
-        <p className="font-black text-gray-900 text-sm">🍅 Pomodoro</p>
-        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${isBreak ? 'bg-teal-100 text-teal-700' : 'bg-amber-100 text-amber-700'}`}>
-          {isBreak ? '☕ Pause' : '🎯 Focus'}
+        <p className="font-black text-ink-900 text-sm flex items-center gap-1.5"><Timer size={16} strokeWidth={2} /> Pomodoro</p>
+        <span className={`text-xs font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${isBreak ? 'bg-teal-100 text-teal-700' : 'bg-amber-400/15 text-amber-600'}`}>
+          {isBreak ? <><Coffee size={12} strokeWidth={2} /> Pause</> : <><Target size={12} strokeWidth={2} /> Focus</>}
         </span>
       </div>
-      <p className="text-xs text-gray-400 mb-3">25 min focus · 5 min pause</p>
+      <p className="text-xs text-ink-400 mb-3">25 min focus · 5 min pause</p>
       <div className="text-center mb-3">
-        <span className="text-4xl font-black text-gray-900 tabular-nums">
+        <span className="text-4xl font-black text-ink-900 tabular-nums">
           {String(mm).padStart(2, '0')}:{String(ss).padStart(2, '0')}
         </span>
       </div>
       <div className="flex gap-2">
         <button onClick={() => setRunning(r => !r)}
-          className="flex-1 bg-teal-500 hover:bg-teal-600 text-white font-bold py-2 rounded-xl text-sm transition-colors">
-          {running ? '⏸ Pause' : '▶ Démarrer'}
+          className="flex-1 bg-teal-500 hover:bg-teal-600 text-white font-bold py-2 rounded-xl text-sm transition-colors flex items-center justify-center gap-1.5">
+          {running ? <><Pause size={16} strokeWidth={2} className="fill-current" /> Pause</> : <><Play size={16} strokeWidth={2} className="fill-current" /> Démarrer</>}
         </button>
-        <button onClick={reset}
-          className="bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold px-4 rounded-xl text-sm">↺</button>
+        <button onClick={reset} aria-label="Réinitialiser"
+          className="bg-surface-muted hover:bg-line text-ink-500 font-bold px-4 rounded-xl text-sm flex items-center justify-center"><RotateCcw size={16} strokeWidth={2} /></button>
       </div>
     </div>
   );

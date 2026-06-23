@@ -1,18 +1,24 @@
 import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
+import {
+  Globe, MessageSquare, Pin, Search, Pencil, X, Users, Flame, Trash2,
+  AlertTriangle, ImagePlus, Camera, Tag, Lightbulb, Clock, Send,
+  Brain, Pill, Wrench, Briefcase, BookOpen, Heart,
+} from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import api from '../lib/api';
 import { useAppStore } from '../stores/useStore';
 
 // ── Config ─────────────────────────────────────────────────────────────────────
 
 const SPACES = [
-  { id: 'STRATEGIES_TDAH', label: 'Stratégies', emoji: '🧠', color: 'teal',   full: 'Stratégies TDAH',   desc: 'Astuces, techniques, routines' },
-  { id: 'MEDICATION',      label: 'Médication', emoji: '💊', color: 'purple', full: 'Médication',         desc: 'Traitements, effets, questions médicales' },
-  { id: 'OUTILS',          label: 'Outils',     emoji: '🛠️', color: 'blue',  full: 'Outils & Apps',      desc: 'Apps, outils, ressources utiles' },
-  { id: 'TRAVAIL',         label: 'Travail',    emoji: '💼', color: 'amber', full: 'Travail',             desc: 'Emploi, télétravail, entreprise' },
-  { id: 'ETUDES',          label: 'Études',     emoji: '📚', color: 'green', full: 'Études',              desc: 'Université, examens, apprentissage' },
-  { id: 'VIE_PERSO',       label: 'Vie perso',  emoji: '💜', color: 'pink',  full: 'Vie personnelle',    desc: 'Relations, famille, bien-être' },
+  { id: 'STRATEGIES_TDAH', label: 'Stratégies', Icon: Brain,     color: 'teal',   full: 'Stratégies TDAH',   desc: 'Astuces, techniques, routines' },
+  { id: 'MEDICATION',      label: 'Médication', Icon: Pill,      color: 'purple', full: 'Médication',         desc: 'Traitements, effets, questions médicales' },
+  { id: 'OUTILS',          label: 'Outils',     Icon: Wrench,    color: 'blue',  full: 'Outils & Apps',      desc: 'Apps, outils, ressources utiles' },
+  { id: 'TRAVAIL',         label: 'Travail',    Icon: Briefcase, color: 'amber', full: 'Travail',             desc: 'Emploi, télétravail, entreprise' },
+  { id: 'ETUDES',          label: 'Études',     Icon: BookOpen,  color: 'green', full: 'Études',              desc: 'Université, examens, apprentissage' },
+  { id: 'VIE_PERSO',       label: 'Vie perso',  Icon: Heart,     color: 'pink',  full: 'Vie personnelle',    desc: 'Relations, famille, bien-être' },
 ] as const;
 
 type SpaceId = typeof SPACES[number]['id'];
@@ -35,10 +41,10 @@ const BORDER_COLOR: Record<string, string> = {
   pink:   'border-l-pink-500',
 };
 
-const SORT_OPTIONS = [
-  { value: 'recent',     label: '🕐 Récents',       desc: 'Les dernières discussions' },
-  { value: 'popular',    label: '🔥 Populaires',     desc: 'Les plus aimés' },
-  { value: 'unanswered', label: '💬 Sans réponse',   desc: 'Attendent une réponse' },
+const SORT_OPTIONS: { value: string; label: string; Icon: LucideIcon; desc: string }[] = [
+  { value: 'recent',     label: 'Récents',       Icon: Clock,         desc: 'Les dernières discussions' },
+  { value: 'popular',    label: 'Populaires',    Icon: Flame,         desc: 'Les plus aimés' },
+  { value: 'unanswered', label: 'Sans réponse',  Icon: MessageSquare, desc: 'Attendent une réponse' },
 ];
 
 const REACTIONS = ['❤️','💪','🧠','✨','🤝','😊'];
@@ -107,12 +113,12 @@ function PostCard({
     <motion.article
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className={`bg-white rounded-2xl border border-gray-100 border-l-4 ${BORDER_COLOR[spaceColor]} shadow-sm hover:shadow-md transition-all overflow-hidden`}
+      className={`bg-white rounded-2xl border border-line border-l-4 ${BORDER_COLOR[spaceColor]} shadow-sm hover:shadow-card transition-all overflow-hidden`}
     >
       <div className="p-5">
         {/* Header */}
         <div className="flex items-start gap-3 mb-3">
-          <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-gray-100 shrink-0 flex items-center justify-center bg-teal-50">
+          <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-line shrink-0 flex items-center justify-center bg-teal-50">
             {post.user?.avatar
               ? <img src={post.user.avatar} alt={post.user.name} className="w-full h-full object-cover" />
               : <span className="font-black text-teal-600 text-sm">{post.user?.name?.[0]?.toUpperCase()}</span>
@@ -120,16 +126,18 @@ function PostCard({
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-bold text-gray-900 text-sm">{post.user?.name}</span>
+              <span className="font-bold text-ink-900 text-sm">{post.user?.name}</span>
               {post.user?.tdahType && (
-                <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
+                <span className="text-xs bg-surface-muted text-ink-500 px-2 py-0.5 rounded-full">
                   {TDAH_LABELS[post.user.tdahType] || post.user.tdahType}
                 </span>
               )}
               {post.isPinned && (
-                <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold">📌 Épinglé</span>
+                <span className="inline-flex items-center gap-1 text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold">
+                  <Pin size={12} strokeWidth={2} /> Épinglé
+                </span>
               )}
-              <span className="text-xs text-gray-400 ml-auto">{timeAgo(post.createdAt)}</span>
+              <span className="text-xs text-ink-400 ml-auto">{timeAgo(post.createdAt)}</span>
             </div>
             {/* Tags */}
             {post.tags?.length > 0 && (
@@ -145,25 +153,25 @@ function PostCard({
           {currentUserId === post.user?.id && (
             <button
               onClick={() => onDelete(post.id)}
-              className="flex items-center gap-1 text-xs text-gray-400 hover:text-red-500 hover:bg-red-50 px-2 py-1 rounded-lg transition-all shrink-0 border border-transparent hover:border-red-200"
+              className="flex items-center gap-1 text-xs text-ink-400 hover:text-red-500 hover:bg-red-50 px-2 py-1 rounded-lg transition-all shrink-0 border border-transparent hover:border-red-200"
               title="Supprimer mon post"
             >
-              🗑️ <span className="hidden sm:inline">Supprimer</span>
+              <Trash2 size={14} strokeWidth={2} /> <span className="hidden sm:inline">Supprimer</span>
             </button>
           )}
         </div>
 
         {/* Titre */}
         {post.title && (
-          <h3 className="font-black text-gray-900 text-base mb-2 leading-snug">{post.title}</h3>
+          <h3 className="font-black text-ink-900 text-base mb-2 leading-snug">{post.title}</h3>
         )}
 
         {/* Contenu avec "Lire la suite" */}
-        <div className="text-gray-600 text-sm leading-relaxed whitespace-pre-line">
+        <div className="text-ink-500 text-sm leading-relaxed whitespace-pre-line">
           {isTruncated ? (
             <>
               {post.content.slice(0, CONTENT_LIMIT)}
-              <span className="text-gray-400">...</span>
+              <span className="text-ink-400">...</span>
               <button
                 onClick={() => setContentOpen(true)}
                 className="ml-1 text-teal-600 hover:text-teal-700 font-semibold text-xs inline-flex items-center gap-1"
@@ -177,7 +185,7 @@ function PostCard({
               {post.content?.length > CONTENT_LIMIT && (
                 <button
                   onClick={() => setContentOpen(false)}
-                  className="ml-1 text-gray-400 hover:text-gray-600 font-semibold text-xs inline-flex items-center gap-1"
+                  className="ml-1 text-ink-400 hover:text-ink-700 font-semibold text-xs inline-flex items-center gap-1"
                 >
                   Réduire ▴
                 </button>
@@ -191,7 +199,7 @@ function PostCard({
           <div className={`mt-3 grid gap-2 ${post.images.length === 1 ? 'grid-cols-1' : post.images.length === 2 ? 'grid-cols-2' : 'grid-cols-2'}`}>
             {post.images.map((url: string, i: number) => (
               <button key={i} onClick={() => setLightbox(url)}
-                className={`rounded-xl overflow-hidden bg-gray-100 ${post.images.length === 3 && i === 0 ? 'col-span-2' : ''}`}>
+                className={`rounded-xl overflow-hidden bg-surface-muted ${post.images.length === 3 && i === 0 ? 'col-span-2' : ''}`}>
                 <img src={url} alt={`Image ${i + 1}`}
                   className="w-full object-cover hover:opacity-90 transition-opacity"
                   style={{ maxHeight: post.images.length === 1 ? '400px' : '200px' }}
@@ -199,7 +207,7 @@ function PostCard({
               </button>
             ))}
             {post.images.length > 4 && (
-              <div className="rounded-xl bg-gray-900/80 flex items-center justify-center text-white font-black text-xl">
+              <div className="rounded-xl bg-ink-900/80 flex items-center justify-center text-white font-black text-xl">
                 +{post.images.length - 4}
               </div>
             )}
@@ -214,16 +222,16 @@ function PostCard({
             onClick={() => setLightbox(null)}
           >
             <button onClick={() => setLightbox(null)}
-              className="absolute top-4 right-4 text-white text-3xl hover:text-gray-300 z-10">✕</button>
+              className="absolute top-4 right-4 text-white hover:text-ink-300 z-10"><X size={28} strokeWidth={2} /></button>
             <img src={lightbox} alt="Plein écran"
-              className="max-w-full max-h-full rounded-2xl object-contain shadow-2xl"
+              className="max-w-full max-h-full rounded-2xl object-contain shadow-card"
               onClick={e => e.stopPropagation()}
             />
           </motion.div>
         )}
 
         {/* ── Réactions ── */}
-        <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-50">
+        <div className="flex items-center justify-between mt-4 pt-3 border-t border-line">
           <div className="flex items-center gap-2">
             {/* Boutons réactions */}
             <div className="flex gap-0.5">
@@ -233,7 +241,7 @@ function PostCard({
                   onClick={() => handleReact(emoji)}
                   animate={reacted === emoji ? { scale: [1, 1.4, 1] } : { scale: 1 }}
                   transition={{ duration: 0.3 }}
-                  className="text-base p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+                  className="text-base p-1.5 hover:bg-surface-muted rounded-lg transition-colors"
                   title={`Réagir avec ${emoji}`}
                 >
                   {emoji}
@@ -244,12 +252,12 @@ function PostCard({
             {total > 0 && (
               <div className="flex items-center gap-1 ml-1">
                 {top.map(([emoji, count]) => (
-                  <span key={emoji} className="text-xs bg-gray-100 rounded-full px-1.5 py-0.5 text-gray-600 font-medium">
+                  <span key={emoji} className="text-xs bg-surface-muted rounded-full px-1.5 py-0.5 text-ink-500 font-medium">
                     {emoji}{count > 1 ? count : ''}
                   </span>
                 ))}
                 {total > 5 && (
-                  <span className="text-xs text-gray-400 font-medium">{total} réactions</span>
+                  <span className="text-xs text-ink-400 font-medium">{total} réactions</span>
                 )}
               </div>
             )}
@@ -259,9 +267,9 @@ function PostCard({
           <div className="flex items-center gap-2">
             <button
               onClick={() => setRepliesOpen(v => !v)}
-              className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-teal-600 font-medium transition-colors px-2 py-1 rounded-lg hover:bg-teal-50"
+              className="flex items-center gap-1.5 text-xs text-ink-400 hover:text-teal-600 font-medium transition-colors px-2 py-1 rounded-lg hover:bg-teal-50"
             >
-              <span>💬</span>
+              <MessageSquare size={16} strokeWidth={2} />
               <span>{replyCount}</span>
             </button>
             <button
@@ -282,26 +290,26 @@ function PostCard({
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="border-t border-gray-100 bg-gradient-to-b from-gray-50 to-white"
+            className="border-t border-line bg-gradient-to-b from-surface-soft to-white"
           >
             <div className="p-4 space-y-3">
               {post.replies?.length === 0 && (
-                <p className="text-sm text-gray-400 text-center py-4">Sois le premier à répondre ! 👇</p>
+                <p className="text-sm text-ink-400 text-center py-4">Sois le premier à répondre !</p>
               )}
               {post.replies?.map((reply: any) => (
                 <div key={reply.id} className="flex gap-3">
                   <div className="relative mt-0.5">
-                    <div className="w-8 h-8 rounded-full overflow-hidden border border-gray-200 flex items-center justify-center bg-purple-50 shrink-0">
+                    <div className="w-8 h-8 rounded-full overflow-hidden border border-line flex items-center justify-center bg-purple-50 shrink-0">
                       {reply.user?.avatar
                         ? <img src={reply.user.avatar} alt={reply.user.name} className="w-full h-full object-cover" />
                         : <span className="text-xs font-black text-purple-600">{reply.user?.name?.[0]}</span>
                       }
                     </div>
                   </div>
-                  <div className="flex-1 bg-white rounded-2xl rounded-tl-sm px-4 py-3 border border-gray-100 shadow-sm">
+                  <div className="flex-1 bg-white rounded-2xl rounded-tl-sm px-4 py-3 border border-line shadow-sm">
                     <div className="flex items-center gap-2 mb-1.5">
-                      <span className="text-xs font-bold text-gray-900">{reply.user?.name}</span>
-                      <span className="text-xs text-gray-400">{timeAgo(reply.createdAt)}</span>
+                      <span className="text-xs font-bold text-ink-900">{reply.user?.name}</span>
+                      <span className="text-xs text-ink-400">{timeAgo(reply.createdAt)}</span>
                       {/* Réactions sur réponses */}
                       {totalReactions(reply.emojiReactions) > 0 && (
                         <div className="ml-auto flex gap-0.5">
@@ -311,7 +319,7 @@ function PostCard({
                         </div>
                       )}
                     </div>
-                    <p className="text-sm text-gray-700 leading-relaxed">{reply.content}</p>
+                    <p className="text-sm text-ink-700 leading-relaxed">{reply.content}</p>
                     {/* Réagir sur réponse */}
                     <div className="flex gap-0.5 mt-2">
                       {REACTIONS.slice(0, 4).map(emoji => (
@@ -465,44 +473,47 @@ export default function Community() {
   const AVAILABLE_TAGS = ['#procrastination','#routines','#focus','#hyperfocus','#body-doubling','#médication','#anxiété','#sommeil','#travail','#études','#diagnostic','#relations','#oubli','#organisation','#émotions'];
 
   return (
-    <div className="h-full flex bg-gray-50 overflow-hidden">
+    <div className="h-full flex bg-surface-soft overflow-hidden">
 
       {/* ══ SIDEBAR GAUCHE ══════════════════════════════════════════════════ */}
-      <aside className="w-56 bg-white border-r border-gray-100 flex flex-col shrink-0 overflow-y-auto">
-        <div className="p-4 border-b border-gray-100">
-          <h2 className="font-black text-gray-900">🌐 Communauté</h2>
-          <p className="text-xs text-gray-400 mt-0.5">
+      <aside className="w-56 bg-white border-r border-line flex flex-col shrink-0 overflow-y-auto">
+        <div className="p-4 border-b border-line">
+          <h2 className="flex items-center gap-2 font-black text-ink-900">
+            <Globe size={18} strokeWidth={2} className="text-teal-600" /> Communauté
+          </h2>
+          <p className="text-xs text-ink-400 mt-0.5">
             {stats?.totalMembers || 0} membres · {stats?.totalPosts || 0} posts
           </p>
         </div>
 
         {/* Espaces */}
         <nav className="p-2 flex-1">
-          <p className="text-xs text-gray-400 font-bold uppercase px-2 mb-1.5 mt-1">Espaces</p>
+          <p className="text-xs text-ink-400 font-bold uppercase px-2 mb-1.5 mt-1">Espaces</p>
           {SPACES.map(s => (
             <button key={s.id} onClick={() => { setSpace(s.id as SpaceId); setSearch(''); setTagFilter(''); }}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all mb-0.5 group ${
                 space === s.id
                   ? `${ACTIVE_COLOR[s.color]} text-white shadow-sm`
-                  : 'text-gray-600 hover:bg-gray-50'
+                  : 'text-ink-500 hover:bg-surface-soft'
               }`}>
-              <span className="text-lg">{s.emoji}</span>
+              <s.Icon size={18} strokeWidth={2} className="shrink-0" />
               <div>
-                <p className={`text-sm font-semibold ${space === s.id ? 'text-white' : 'text-gray-800'}`}>{s.label}</p>
-                <p className={`text-xs ${space === s.id ? 'text-white/70' : 'text-gray-400'}`}>{s.desc}</p>
+                <p className={`text-sm font-semibold ${space === s.id ? 'text-white' : 'text-ink-700'}`}>{s.label}</p>
+                <p className={`text-xs ${space === s.id ? 'text-white/70' : 'text-ink-400'}`}>{s.desc}</p>
               </div>
             </button>
           ))}
         </nav>
 
         {/* Tri */}
-        <div className="p-2 border-t border-gray-100">
-          <p className="text-xs text-gray-400 font-bold uppercase px-2 mb-1.5">Trier</p>
+        <div className="p-2 border-t border-line">
+          <p className="text-xs text-ink-400 font-bold uppercase px-2 mb-1.5">Trier</p>
           {SORT_OPTIONS.map(o => (
             <button key={o.value} onClick={() => setSort(o.value)}
-              className={`w-full text-left px-3 py-2 rounded-xl text-xs font-semibold transition-colors mb-0.5 ${
-                sort === o.value ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:bg-gray-50'
+              className={`w-full flex items-center gap-2 text-left px-3 py-2 rounded-xl text-xs font-semibold transition-colors mb-0.5 ${
+                sort === o.value ? 'bg-surface-muted text-ink-900' : 'text-ink-500 hover:bg-surface-soft'
               }`}>
+              <o.Icon size={14} strokeWidth={2} className="shrink-0" />
               {o.label}
             </button>
           ))}
@@ -510,7 +521,7 @@ export default function Community() {
 
         {/* Stats */}
         {stats && (
-          <div className="p-3 border-t border-gray-100">
+          <div className="p-3 border-t border-line">
             <div className="bg-teal-50 rounded-xl p-3 text-center">
               <p className="text-teal-600 font-black text-xl">{stats.postsThisWeek}</p>
               <p className="text-teal-500 text-xs">discussions cette semaine</p>
@@ -522,29 +533,31 @@ export default function Community() {
       {/* ══ FEED CENTRAL ════════════════════════════════════════════════════ */}
       <main className="flex-1 flex flex-col overflow-hidden">
         {/* Barre supérieure sticky */}
-        <div className="bg-white border-b border-gray-100 px-5 py-3 shrink-0">
+        <div className="bg-white border-b border-line px-5 py-3 shrink-0">
           <div className="flex items-center gap-3 mb-2">
-            <span className="text-xl">{currentSpace.emoji}</span>
+            <currentSpace.Icon size={22} strokeWidth={2} className="text-ink-700 shrink-0" />
             <div className="flex-1">
-              <h1 className="font-black text-gray-900 text-base">{currentSpace.full}</h1>
-              <p className="text-xs text-gray-400">{currentSpace.desc}</p>
+              <h1 className="font-black text-ink-900 text-base">{currentSpace.full}</h1>
+              <p className="text-xs text-ink-400">{currentSpace.desc}</p>
             </div>
             {/* Recherche */}
             <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
+              <Search size={16} strokeWidth={2} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-400" />
               <input ref={searchRef} value={search}
                 onChange={e => setSearch(e.target.value)}
                 placeholder="Rechercher..."
-                className="pl-8 pr-8 py-2 border-2 border-gray-200 focus:border-teal-400 rounded-xl text-sm outline-none w-44"
+                className="pl-8 pr-8 py-2 border-2 border-line focus:border-teal-400 rounded-xl text-sm outline-none w-44"
               />
               {search && (
-                <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">✕</button>
+                <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-400 hover:text-ink-700">
+                  <X size={14} strokeWidth={2} />
+                </button>
               )}
             </div>
             {/* Bouton écrire */}
             <button onClick={() => { setShowCompose(true); setPostError(''); }}
               className="flex items-center gap-1.5 bg-teal-500 hover:bg-teal-600 text-white font-bold px-4 py-2 rounded-xl text-sm transition-colors shadow-sm">
-              ✏️ Écrire
+              <Pencil size={18} strokeWidth={2} /> Écrire
             </button>
           </div>
 
@@ -553,14 +566,14 @@ export default function Community() {
             <div className="flex gap-1.5 flex-wrap">
               <button onClick={() => setTagFilter('')}
                 className={`text-xs px-2.5 py-1 rounded-full font-medium transition-colors border ${
-                  !tagFilter ? 'bg-teal-500 text-white border-teal-500' : 'bg-white text-gray-500 border-gray-200 hover:border-teal-300'
+                  !tagFilter ? 'bg-teal-500 text-white border-teal-500' : 'bg-white text-ink-500 border-line hover:border-teal-300'
                 }`}>
                 Tous
               </button>
               {(allTags as string[]).map((tag: string) => (
                 <button key={tag} onClick={() => setTagFilter(tagFilter === tag ? '' : tag)}
                   className={`text-xs px-2.5 py-1 rounded-full font-medium transition-colors border ${
-                    tagFilter === tag ? 'bg-teal-500 text-white border-teal-500' : 'bg-white text-gray-500 border-gray-200 hover:border-teal-300'
+                    tagFilter === tag ? 'bg-teal-500 text-white border-teal-500' : 'bg-white text-ink-500 border-line hover:border-teal-300'
                   }`}>
                   {tag}
                 </button>
@@ -574,17 +587,17 @@ export default function Community() {
           {isLoading && (
             <div className="space-y-4">
               {[1,2,3,4].map(i => (
-                <div key={i} className="bg-white rounded-2xl p-5 animate-pulse border border-gray-100">
+                <div key={i} className="bg-white rounded-2xl p-5 animate-pulse border border-line">
                   <div className="flex gap-3 mb-3">
-                    <div className="w-10 h-10 bg-gray-100 rounded-full shrink-0" />
+                    <div className="w-10 h-10 bg-surface-muted rounded-full shrink-0" />
                     <div className="flex-1 space-y-1.5">
-                      <div className="h-3 bg-gray-100 rounded w-32" />
-                      <div className="h-2 bg-gray-100 rounded w-20" />
+                      <div className="h-3 bg-surface-muted rounded w-32" />
+                      <div className="h-2 bg-surface-muted rounded w-20" />
                     </div>
                   </div>
-                  <div className="h-4 bg-gray-100 rounded w-3/4 mb-2" />
-                  <div className="h-3 bg-gray-100 rounded w-full mb-1" />
-                  <div className="h-3 bg-gray-100 rounded w-2/3" />
+                  <div className="h-4 bg-surface-muted rounded w-3/4 mb-2" />
+                  <div className="h-3 bg-surface-muted rounded w-full mb-1" />
+                  <div className="h-3 bg-surface-muted rounded w-2/3" />
                 </div>
               ))}
             </div>
@@ -592,17 +605,17 @@ export default function Community() {
 
           {!isLoading && filteredPosts.length === 0 && (
             <div className="text-center py-16">
-              <p className="text-5xl mb-3">💬</p>
-              <p className="font-black text-gray-900 text-xl mb-2">
+              <MessageSquare size={40} strokeWidth={2} className="text-ink-400 mx-auto mb-3" />
+              <p className="font-black text-ink-900 text-xl mb-2">
                 {search || tagFilter ? 'Aucun résultat' : 'Sois le premier à écrire !'}
               </p>
-              <p className="text-gray-400 text-sm mb-6">
+              <p className="text-ink-400 text-sm mb-6">
                 {search ? `"${search}" — aucun post trouvé` : tagFilter ? `Aucun post avec ${tagFilter}` : 'La communauté TDAH t\'attend'}
               </p>
               {!search && !tagFilter && (
                 <button onClick={() => { setShowCompose(true); setPostError(''); }}
-                  className="bg-teal-500 text-white font-bold px-6 py-3 rounded-xl hover:bg-teal-600 transition-colors">
-                  ✏️ Créer le premier post
+                  className="inline-flex items-center gap-2 bg-teal-500 text-white font-bold px-6 py-3 rounded-xl hover:bg-teal-600 transition-colors">
+                  <Pencil size={18} strokeWidth={2} /> Créer le premier post
                 </button>
               )}
             </div>
@@ -629,24 +642,26 @@ export default function Community() {
       </main>
 
       {/* ══ SIDEBAR DROITE ══════════════════════════════════════════════════ */}
-      <aside className="w-52 bg-white border-l border-gray-100 shrink-0 overflow-y-auto hidden xl:flex flex-col">
+      <aside className="w-52 bg-white border-l border-line shrink-0 overflow-y-auto hidden xl:flex flex-col">
 
         {/* Membres actifs */}
         {stats?.activeMembers?.length > 0 && (
-          <div className="p-4 border-b border-gray-100">
-            <p className="text-xs text-gray-400 font-bold uppercase mb-3">👥 Membres actifs</p>
+          <div className="p-4 border-b border-line">
+            <p className="flex items-center gap-1.5 text-xs text-ink-400 font-bold uppercase mb-3">
+              <Users size={14} strokeWidth={2} /> Membres actifs
+            </p>
             <div className="space-y-2.5">
               {stats.activeMembers.slice(0, 6).map((m: any) => (
                 <div key={m.id} className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 bg-teal-50 border border-gray-100 flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 bg-teal-50 border border-line flex items-center justify-center">
                     {m.avatar
                       ? <img src={m.avatar} alt={m.name} className="w-full h-full object-cover" />
                       : <span className="text-xs font-black text-teal-600">{m.name?.[0]}</span>
                     }
                   </div>
                   <div className="min-w-0">
-                    <p className="text-xs font-bold text-gray-900 truncate">{m.name}</p>
-                    <p className="text-xs text-gray-400">{TDAH_LABELS[m.tdahType] || '🧠'}</p>
+                    <p className="text-xs font-bold text-ink-900 truncate">{m.name}</p>
+                    <p className="text-xs text-ink-400">{TDAH_LABELS[m.tdahType] || '🧠'}</p>
                   </div>
                 </div>
               ))}
@@ -656,15 +671,19 @@ export default function Community() {
 
         {/* Trending */}
         {stats?.trending?.length > 0 && (
-          <div className="p-4 border-b border-gray-100">
-            <p className="text-xs text-gray-400 font-bold uppercase mb-3">🔥 En ce moment</p>
+          <div className="p-4 border-b border-line">
+            <p className="flex items-center gap-1.5 text-xs text-ink-400 font-bold uppercase mb-3">
+              <Flame size={14} strokeWidth={2} /> En ce moment
+            </p>
             <div className="space-y-2.5">
               {stats.trending.map((p: any) => (
                 <button key={p.id}
                   onClick={() => { const s = SPACES.find(sp => sp.id === p.spaceId); if (s) setSpace(s.id as SpaceId); }}
                   className="w-full text-left group">
-                  <p className="text-xs font-semibold text-gray-800 line-clamp-2 group-hover:text-teal-600 transition-colors">{p.title || p.content?.slice(0, 70)}</p>
-                  <p className="text-xs text-gray-400 mt-0.5">💬 {p._count?.replies || 0} réponses</p>
+                  <p className="text-xs font-semibold text-ink-700 line-clamp-2 group-hover:text-teal-600 transition-colors">{p.title || p.content?.slice(0, 70)}</p>
+                  <p className="flex items-center gap-1 text-xs text-ink-400 mt-0.5">
+                    <MessageSquare size={12} strokeWidth={2} /> {p._count?.replies || 0} réponses
+                  </p>
                 </button>
               ))}
             </div>
@@ -674,9 +693,9 @@ export default function Community() {
         {/* Message TDAH du jour */}
         <div className="p-4 mt-auto">
           <div className="bg-gradient-to-br from-teal-50 to-purple-50 rounded-2xl p-4 text-center border border-teal-100">
-            <p className="text-2xl mb-2">💜</p>
-            <p className="text-xs font-bold text-gray-800 mb-1">Tu n'es pas seul(e)</p>
-            <p className="text-xs text-gray-500 leading-relaxed">Chaque question ici aide quelqu'un d'autre dans notre communauté TDAH</p>
+            <Heart size={24} strokeWidth={2} className="text-purple-500 mx-auto mb-2" />
+            <p className="text-xs font-bold text-ink-700 mb-1">Tu n'es pas seul(e)</p>
+            <p className="text-xs text-ink-500 leading-relaxed">Chaque question ici aide quelqu'un d'autre dans notre communauté TDAH</p>
           </div>
         </div>
       </aside>
@@ -687,30 +706,36 @@ export default function Community() {
           <motion.div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             onClick={() => setShowCompose(false)}>
-            <motion.div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden"
+            <motion.div className="bg-white rounded-3xl w-full max-w-lg shadow-card overflow-hidden"
               initial={{ scale: 0.94, y: 12 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.94, opacity: 0 }}
               onClick={e => e.stopPropagation()}>
 
-              <div className="p-5 border-b border-gray-100 flex items-center justify-between">
+              <div className="p-5 border-b border-line flex items-center justify-between">
                 <div>
-                  <h3 className="font-black text-gray-900 text-lg">✏️ Nouveau post</h3>
-                  <p className="text-xs text-gray-400 mt-0.5">{currentSpace.emoji} {currentSpace.full}</p>
+                  <h3 className="flex items-center gap-2 font-black text-ink-900 text-lg">
+                    <Pencil size={20} strokeWidth={2} className="text-teal-600" /> Nouveau post
+                  </h3>
+                  <p className="flex items-center gap-1.5 text-xs text-ink-400 mt-0.5">
+                    <currentSpace.Icon size={14} strokeWidth={2} /> {currentSpace.full}
+                  </p>
                 </div>
-                <button onClick={() => setShowCompose(false)} className="text-gray-400 hover:text-gray-700 text-2xl w-8 h-8 flex items-center justify-center">✕</button>
+                <button onClick={() => setShowCompose(false)} className="text-ink-400 hover:text-ink-700 w-8 h-8 flex items-center justify-center">
+                  <X size={22} strokeWidth={2} />
+                </button>
               </div>
 
               <div className="p-5">
                 {/* Auteur */}
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-full overflow-hidden bg-teal-50 border border-gray-100 flex items-center justify-center shrink-0">
+                  <div className="w-10 h-10 rounded-full overflow-hidden bg-teal-50 border border-line flex items-center justify-center shrink-0">
                     {user?.avatar
                       ? <img src={user.avatar} alt={user?.name} className="w-full h-full object-cover" />
                       : <span className="font-black text-teal-600">{user?.name?.[0]}</span>
                     }
                   </div>
                   <div>
-                    <p className="font-bold text-gray-900 text-sm">{user?.name}</p>
-                    <p className="text-xs text-gray-400">{TDAH_LABELS[user?.tdahType || ''] || '🧠 Membre TDAH'}</p>
+                    <p className="font-bold text-ink-900 text-sm">{user?.name}</p>
+                    <p className="text-xs text-ink-400">{TDAH_LABELS[user?.tdahType || ''] || '🧠 Membre TDAH'}</p>
                   </div>
                 </div>
 
@@ -720,7 +745,7 @@ export default function Community() {
                   onChange={e => setPostTitle(e.target.value)}
                   placeholder="Titre de ton post (obligatoire)"
                   maxLength={120}
-                  className="w-full border-2 border-gray-200 focus:border-teal-400 rounded-xl px-4 py-2.5 text-sm font-semibold outline-none mb-3"
+                  className="w-full border-2 border-line focus:border-teal-400 rounded-xl px-4 py-2.5 text-sm font-semibold outline-none mb-3"
                 />
 
                 {/* Contenu */}
@@ -731,40 +756,44 @@ export default function Community() {
                   rows={4}
                   maxLength={2000}
                   autoFocus
-                  className="w-full border-2 border-gray-200 focus:border-teal-400 rounded-xl px-4 py-3 text-sm outline-none resize-none leading-relaxed mb-1"
+                  className="w-full border-2 border-line focus:border-teal-400 rounded-xl px-4 py-3 text-sm outline-none resize-none leading-relaxed mb-1"
                 />
-                <p className="text-xs text-gray-300 text-right mb-3">{content.length}/2000</p>
+                <p className="text-xs text-ink-400 text-right mb-3">{content.length}/2000</p>
 
                 {/* Photos */}
                 <div className="mb-4">
-                  <p className="text-xs text-gray-400 font-bold mb-2">📸 Photos (max 4)</p>
+                  <p className="flex items-center gap-1.5 text-xs text-ink-400 font-bold mb-2">
+                    <ImagePlus size={14} strokeWidth={2} /> Photos (max 4)
+                  </p>
                   <div className="flex gap-2 flex-wrap">
                     {postImages.map((img, i) => (
-                      <div key={i} className="relative w-20 h-20 rounded-xl overflow-hidden border-2 border-gray-200">
+                      <div key={i} className="relative w-20 h-20 rounded-xl overflow-hidden border-2 border-line">
                         <img src={img.preview} alt="" className="w-full h-full object-cover" />
                         <button
                           onClick={() => setPostImages(prev => prev.filter((_, idx) => idx !== i))}
-                          className="absolute top-1 right-1 bg-black/60 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center hover:bg-red-500 transition-colors"
-                        >✕</button>
+                          className="absolute top-1 right-1 bg-ink-900/60 text-white w-5 h-5 rounded-full flex items-center justify-center hover:bg-red-500 transition-colors"
+                        ><X size={12} strokeWidth={2.5} /></button>
                       </div>
                     ))}
                     {postImages.length < 4 && (
                       <button
                         onClick={() => imageRef.current?.click()}
-                        className="w-20 h-20 rounded-xl border-2 border-dashed border-gray-300 hover:border-teal-400 flex flex-col items-center justify-center gap-1 text-gray-400 hover:text-teal-500 transition-colors"
+                        className="w-20 h-20 rounded-xl border-2 border-dashed border-line hover:border-teal-400 flex flex-col items-center justify-center gap-1 text-ink-400 hover:text-teal-500 transition-colors"
                       >
-                        <span className="text-2xl">📷</span>
+                        <Camera size={22} strokeWidth={2} />
                         <span className="text-xs">Ajouter</span>
                       </button>
                     )}
                   </div>
                   <input ref={imageRef} type="file" accept="image/*" multiple onChange={handleAddImages} className="hidden" />
-                  <p className="text-xs text-gray-300 mt-1">JPG, PNG, GIF, WEBP · Max 5 Mo par image</p>
+                  <p className="text-xs text-ink-400 mt-1">JPG, PNG, GIF, WEBP · Max 5 Mo par image</p>
                 </div>
 
                 {/* Tags */}
                 <div className="mb-4">
-                  <p className="text-xs text-gray-400 font-bold mb-2">🏷️ Tags (max 3)</p>
+                  <p className="flex items-center gap-1.5 text-xs text-ink-400 font-bold mb-2">
+                    <Tag size={14} strokeWidth={2} /> Tags (max 3)
+                  </p>
                   <div className="flex flex-wrap gap-1.5">
                     {AVAILABLE_TAGS.map(tag => (
                       <button key={tag} type="button"
@@ -774,7 +803,7 @@ export default function Community() {
                         className={`text-xs px-2.5 py-1 rounded-full border font-medium transition-all ${
                           postTags.includes(tag)
                             ? 'bg-teal-500 text-white border-teal-500'
-                            : 'bg-white text-gray-500 border-gray-200 hover:border-teal-300'
+                            : 'bg-white text-ink-500 border-line hover:border-teal-300'
                         }`}>
                         {tag}
                       </button>
@@ -785,12 +814,14 @@ export default function Community() {
                 {/* Message d'erreur */}
                 {postError && (
                   <div className="mb-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3 flex items-start gap-2">
-                    <span className="text-red-500 text-lg shrink-0">⚠️</span>
+                    <AlertTriangle size={18} strokeWidth={2} className="text-red-500 shrink-0 mt-0.5" />
                     <div>
                       <p className="text-red-700 text-sm font-semibold">Erreur de publication</p>
                       <p className="text-red-600 text-xs mt-0.5">{postError}</p>
                     </div>
-                    <button onClick={() => setPostError('')} className="ml-auto text-red-400 hover:text-red-600 text-lg">×</button>
+                    <button onClick={() => setPostError('')} className="ml-auto text-red-400 hover:text-red-600">
+                      <X size={16} strokeWidth={2} />
+                    </button>
                   </div>
                 )}
 
@@ -798,7 +829,7 @@ export default function Community() {
                 <div className="flex gap-3">
                   <button
                     onClick={() => { setShowCompose(false); setPostError(''); }}
-                    className="flex-1 border-2 border-gray-200 text-gray-600 font-bold py-3 rounded-2xl hover:bg-gray-50 transition-colors text-sm">
+                    className="flex-1 border-2 border-line text-ink-500 font-bold py-3 rounded-2xl hover:bg-surface-soft transition-colors text-sm">
                     Annuler
                   </button>
                   <button
@@ -810,7 +841,9 @@ export default function Community() {
                         <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
                         {postImages.length > 0 ? 'Upload image...' : 'Publication...'}
                       </>
-                    ) : '🚀 Publier'}
+                    ) : (
+                      <><Send size={18} strokeWidth={2} /> Publier</>
+                    )}
                   </button>
                 </div>
               </div>
@@ -828,22 +861,22 @@ export default function Community() {
             onClick={() => setDeleteTarget(null)}
           >
             <motion.div
-              className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden"
+              className="bg-white rounded-2xl w-full max-w-sm shadow-card overflow-hidden"
               initial={{ scale: 0.9, y: 10 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0 }}
               onClick={e => e.stopPropagation()}
             >
               <div className="p-6 text-center">
-                <div className="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center text-3xl mx-auto mb-4">
-                  🗑️
+                <div className="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Trash2 size={28} strokeWidth={2} className="text-red-500" />
                 </div>
-                <h3 className="font-black text-gray-900 text-lg mb-2">Supprimer ce post ?</h3>
-                <p className="text-gray-500 text-sm mb-6">
+                <h3 className="font-black text-ink-900 text-lg mb-2">Supprimer ce post ?</h3>
+                <p className="text-ink-500 text-sm mb-6">
                   Cette action est irréversible. Le post et toutes ses réponses seront supprimés définitivement.
                 </p>
                 <div className="flex gap-3">
                   <button
                     onClick={() => setDeleteTarget(null)}
-                    className="flex-1 border-2 border-gray-200 text-gray-600 font-bold py-3 rounded-xl hover:bg-gray-50 transition-colors"
+                    className="flex-1 border-2 border-line text-ink-500 font-bold py-3 rounded-xl hover:bg-surface-soft transition-colors"
                   >
                     Annuler
                   </button>
@@ -853,9 +886,11 @@ export default function Community() {
                       setDeleteTarget(null);
                     }}
                     disabled={deletePost.isPending}
-                    className="flex-1 bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white font-black py-3 rounded-xl transition-colors"
+                    className="flex-1 inline-flex items-center justify-center gap-2 bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white font-black py-3 rounded-xl transition-colors"
                   >
-                    {deletePost.isPending ? '⏳...' : '🗑️ Supprimer'}
+                    {deletePost.isPending
+                      ? '...'
+                      : <><Trash2 size={18} strokeWidth={2} /> Supprimer</>}
                   </button>
                 </div>
               </div>
@@ -870,21 +905,27 @@ export default function Community() {
           <motion.div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4"
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             onClick={() => setReplyTo(null)}>
-            <motion.div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden"
+            <motion.div className="bg-white rounded-3xl w-full max-w-md shadow-card overflow-hidden"
               initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }}
               onClick={e => e.stopPropagation()}>
 
-              <div className="p-4 border-b border-gray-100 flex items-center justify-between">
+              <div className="p-4 border-b border-line flex items-center justify-between">
                 <div>
-                  <h3 className="font-black text-gray-900">💬 Répondre</h3>
-                  <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">à {replyTo.user?.name} — {replyTo.title || replyTo.content?.slice(0, 50)}</p>
+                  <h3 className="flex items-center gap-2 font-black text-ink-900">
+                    <MessageSquare size={18} strokeWidth={2} className="text-teal-600" /> Répondre
+                  </h3>
+                  <p className="text-xs text-ink-400 mt-0.5 line-clamp-1">à {replyTo.user?.name} — {replyTo.title || replyTo.content?.slice(0, 50)}</p>
                 </div>
-                <button onClick={() => setReplyTo(null)} className="text-gray-400 hover:text-gray-700 text-xl w-8 h-8 flex items-center justify-center">✕</button>
+                <button onClick={() => setReplyTo(null)} className="text-ink-400 hover:text-ink-700 w-8 h-8 flex items-center justify-center">
+                  <X size={20} strokeWidth={2} />
+                </button>
               </div>
 
               <div className="p-4">
                 {/* Suggestions anti-paralysie TDAH */}
-                <p className="text-xs text-gray-400 font-bold uppercase mb-2">💡 Réponses rapides</p>
+                <p className="flex items-center gap-1.5 text-xs text-ink-400 font-bold uppercase mb-2">
+                  <Lightbulb size={14} strokeWidth={2} /> Réponses rapides
+                </p>
                 <div className="grid grid-cols-2 gap-2 mb-4">
                   {REPLY_SUGGESTIONS.map(s => (
                     <button key={s} onClick={() => createReply.mutate(s)}
@@ -896,13 +937,13 @@ export default function Community() {
                 </div>
 
                 <div className="flex items-center gap-2 mb-3">
-                  <div className="flex-1 h-px bg-gray-100" />
-                  <span className="text-xs text-gray-400">ou écris la tienne</span>
-                  <div className="flex-1 h-px bg-gray-100" />
+                  <div className="flex-1 h-px bg-line" />
+                  <span className="text-xs text-ink-400">ou écris la tienne</span>
+                  <div className="flex-1 h-px bg-line" />
                 </div>
 
                 <div className="flex gap-3">
-                  <div className="w-8 h-8 rounded-full overflow-hidden bg-teal-50 flex items-center justify-center shrink-0 border border-gray-100">
+                  <div className="w-8 h-8 rounded-full overflow-hidden bg-teal-50 flex items-center justify-center shrink-0 border border-line">
                     {user?.avatar
                       ? <img src={user.avatar} className="w-full h-full object-cover" />
                       : <span className="text-xs font-black text-teal-600">{user?.name?.[0]}</span>
@@ -916,19 +957,21 @@ export default function Community() {
                     maxLength={1000}
                     autoFocus
                     onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && replyContent.trim()) { e.preventDefault(); createReply.mutate(replyContent); } }}
-                    className="flex-1 border-2 border-gray-200 focus:border-teal-400 rounded-xl px-3 py-2.5 text-sm outline-none resize-none"
+                    className="flex-1 border-2 border-line focus:border-teal-400 rounded-xl px-3 py-2.5 text-sm outline-none resize-none"
                   />
                 </div>
                 <div className="flex gap-2 mt-3">
                   <button onClick={() => setReplyTo(null)}
-                    className="flex-1 border-2 border-gray-200 text-gray-600 font-bold py-2.5 rounded-xl text-sm hover:bg-gray-50">
+                    className="flex-1 border-2 border-line text-ink-500 font-bold py-2.5 rounded-xl text-sm hover:bg-surface-soft">
                     Annuler
                   </button>
                   <button
                     onClick={() => { if (replyContent.trim()) createReply.mutate(replyContent); }}
                     disabled={!replyContent.trim() || createReply.isPending}
-                    className="flex-1 bg-teal-500 hover:bg-teal-600 disabled:opacity-40 text-white font-black py-2.5 rounded-xl text-sm transition-colors">
-                    {createReply.isPending ? '...' : '💬 Envoyer'}
+                    className="flex-1 inline-flex items-center justify-center gap-2 bg-teal-500 hover:bg-teal-600 disabled:opacity-40 text-white font-black py-2.5 rounded-xl text-sm transition-colors">
+                    {createReply.isPending
+                      ? '...'
+                      : <><Send size={16} strokeWidth={2} /> Envoyer</>}
                   </button>
                 </div>
               </div>

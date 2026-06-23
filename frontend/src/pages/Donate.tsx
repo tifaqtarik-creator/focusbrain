@@ -1,22 +1,35 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import {
+  Brain, Coffee, Heart, Rocket, Users, Microscope, Globe, Gift,
+  CreditCard, Wallet, Smartphone, Apple, Lock, PartyPopper, ArrowRight,
+} from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 
 // PayPal.me fonctionne dans tous les pays (pas de restriction ONG)
 // Pour activer : va sur https://www.paypal.com/paypalme et crée ton lien
 const PAYPAL_ME = 'Tariktifaq'; // → paypal.me/Tariktifaq
 
-const AMOUNTS = [
-  { value: 5,  label: '5€',  emoji: '☕', desc: 'Un café solidaire' },
-  { value: 10, label: '10€', emoji: '🧠', desc: 'Soutenir 1 semaine de dev' },
-  { value: 20, label: '20€', emoji: '💜', desc: 'Devenir ambassadeur TDAH' },
-  { value: 50, label: '50€', emoji: '🚀', desc: 'Propulser FocusBrain' },
+const AMOUNTS: { value: number; label: string; icon: LucideIcon; desc: string }[] = [
+  { value: 5,  label: '5€',  icon: Coffee, desc: 'Un café solidaire' },
+  { value: 10, label: '10€', icon: Brain,  desc: 'Soutenir 1 semaine de dev' },
+  { value: 20, label: '20€', icon: Heart,  desc: 'Devenir ambassadeur TDAH' },
+  { value: 50, label: '50€', icon: Rocket, desc: 'Propulser FocusBrain' },
 ];
 
-const IMPACT = [
-  { icon: '👥', title: '10 000+ adultes TDAH', desc: 'en isolement qui cherchent quelqu\'un qui les comprend' },
-  { icon: '🔬', title: 'Scientifiquement prouvé', desc: 'Le Body Doubling augmente la productivité de 300% pour le TDAH' },
-  { icon: '🌍', title: 'Maroc → Monde', desc: 'La 1ère plateforme TDAH francophone pensée par et pour nous' },
+const IMPACT: { icon: LucideIcon; title: string; desc: string }[] = [
+  { icon: Users,      title: '10 000+ adultes TDAH', desc: 'en isolement qui cherchent quelqu\'un qui les comprend' },
+  { icon: Microscope, title: 'Scientifiquement prouvé', desc: 'Le Body Doubling augmente la productivité de 300% pour le TDAH' },
+  { icon: Globe,      title: 'Maroc → Monde', desc: 'La 1ère plateforme TDAH francophone pensée par et pour nous' },
+];
+
+// Méthodes de paiement acceptées
+const PAY_METHODS: { icon: LucideIcon; label: string }[] = [
+  { icon: CreditCard, label: 'Carte CB' },
+  { icon: Wallet,     label: 'PayPal' },
+  { icon: Smartphone, label: 'Google Pay' },
+  { icon: Apple,      label: 'Apple Pay' },
 ];
 
 const DONORS = [
@@ -50,15 +63,15 @@ export default function Donate() {
   const isMerci = new URLSearchParams(window.location.search).get('merci') === '1';
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-purple-50 via-white to-teal-50">
+    <div className="min-h-screen bg-gradient-to-b from-surface-soft via-white to-teal-50">
 
       {/* Nav */}
       <nav className="flex items-center justify-between px-6 py-4 max-w-5xl mx-auto">
-        <Link to="/" className="text-xl font-black text-teal-500" style={{ fontFamily: 'DM Sans' }}>
-          🧠 FocusBrain
+        <Link to="/" className="flex items-center gap-1.5 text-xl font-black text-teal-600" style={{ fontFamily: 'DM Sans' }}>
+          <Brain size={22} strokeWidth={2} />FocusBrain
         </Link>
-        <Link to="/login" className="text-gray-600 font-semibold text-sm px-4 py-2 rounded-xl hover:bg-gray-50 transition-colors">
-          Se connecter →
+        <Link to="/login" className="flex items-center gap-1.5 text-ink-500 font-semibold text-sm px-4 py-2 rounded-xl hover:bg-surface-soft transition-colors">
+          Se connecter<ArrowRight size={16} strokeWidth={2} />
         </Link>
       </nav>
 
@@ -70,9 +83,9 @@ export default function Donate() {
             animate={{ opacity: 1, y: 0 }}
             className="max-w-2xl mx-auto px-6 mb-6"
           >
-            <div className="bg-teal-500 text-white rounded-2xl px-6 py-4 text-center shadow-lg">
-              <p className="text-2xl mb-1">🎉 Merci infiniment !</p>
-              <p className="opacity-90">Ton don aide la communauté TDAH à trouver sa place. Tu es incroyable 💜</p>
+            <div className="bg-teal-500 text-white rounded-2xl px-6 py-4 text-center shadow-card">
+              <p className="flex items-center justify-center gap-2 text-2xl font-black mb-1"><PartyPopper size={24} strokeWidth={2} /> Merci infiniment !</p>
+              <p className="opacity-90 flex items-center justify-center gap-1.5">Ton don aide la communauté TDAH à trouver sa place. Tu es incroyable <Heart size={16} strokeWidth={2} className="fill-current" /></p>
             </div>
           </motion.div>
         )}
@@ -85,15 +98,15 @@ export default function Donate() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          <span className="inline-block bg-purple-100 text-purple-700 font-bold px-4 py-1.5 rounded-full text-sm mb-6">
-            💜 Soutenir FocusBrain
+          <span className="inline-flex items-center gap-1.5 bg-violet-100 text-violet-700 font-bold px-4 py-1.5 rounded-full text-sm mb-6">
+            <Heart size={14} strokeWidth={2} className="fill-current" /> Soutenir FocusBrain
           </span>
-          <h1 className="text-4xl md:text-5xl font-black text-gray-900 mb-4 leading-tight" style={{ fontFamily: 'DM Sans' }}>
+          <h1 className="text-4xl md:text-5xl font-black text-ink-900 mb-4 leading-tight" style={{ fontFamily: 'DM Sans' }}>
             Aide-moi à construire<br />
-            <span className="text-purple-600">la plateforme TDAH</span><br />
+            <span className="text-violet-600">la plateforme TDAH</span><br />
             dont on avait tous besoin
           </h1>
-          <p className="text-lg text-gray-500 max-w-xl mx-auto leading-relaxed">
+          <p className="text-lg text-ink-500 max-w-xl mx-auto leading-relaxed">
             Je suis Tarik, adulte TDAH. J'ai créé FocusBrain seul, la nuit, après ma journée de travail.
             Chaque don me permet de continuer à développer cet outil pour notre communauté.
           </p>
@@ -103,20 +116,23 @@ export default function Donate() {
       {/* Impact */}
       <section className="max-w-4xl mx-auto px-6 pb-12">
         <div className="grid md:grid-cols-3 gap-4">
-          {IMPACT.map((item, i) => (
+          {IMPACT.map((item, i) => {
+            const Icon = item.icon;
+            return (
             <motion.div
               key={i}
               initial={{ opacity: 0, y: 12 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: i * 0.1 }}
-              className="bg-white border border-gray-100 rounded-2xl p-5 text-center shadow-sm"
+              className="bg-white border border-line rounded-2xl p-5 text-center shadow-soft"
             >
-              <span className="text-3xl block mb-3">{item.icon}</span>
-              <p className="font-black text-gray-900 mb-1">{item.title}</p>
-              <p className="text-gray-500 text-sm leading-relaxed">{item.desc}</p>
+              <span className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-violet-50 text-violet-600 mb-3"><Icon size={26} strokeWidth={2} /></span>
+              <p className="font-black text-ink-900 mb-1">{item.title}</p>
+              <p className="text-ink-500 text-sm leading-relaxed">{item.desc}</p>
             </motion.div>
-          ))}
+            );
+          })}
         </div>
       </section>
 
@@ -126,31 +142,35 @@ export default function Donate() {
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          className="bg-white rounded-3xl shadow-xl border border-gray-100 p-8"
+          className="bg-white rounded-3xl shadow-card border border-line p-8"
         >
-          <h2 className="text-2xl font-black text-gray-900 mb-1">Faire un don</h2>
-          <p className="text-gray-400 text-sm mb-6">Paiement 100% sécurisé via PayPal</p>
+          <h2 className="text-2xl font-black text-ink-900 mb-1">Faire un don</h2>
+          <p className="text-ink-400 text-sm mb-6">Paiement 100% sécurisé via PayPal</p>
 
           {/* Montants prédéfinis */}
-          <p className="text-xs text-gray-400 font-bold uppercase mb-3">Choisir un montant</p>
+          <p className="text-xs text-ink-400 font-bold uppercase mb-3">Choisir un montant</p>
           <div className="grid grid-cols-2 gap-3 mb-3">
-            {AMOUNTS.map(a => (
+            {AMOUNTS.map(a => {
+              const Icon = a.icon;
+              const active = !useCustom && selected === a.value;
+              return (
               <button
                 key={a.value}
                 onClick={() => { setSelected(a.value); setUseCustom(false); }}
                 className={`flex items-center gap-3 px-4 py-3 rounded-2xl border-2 text-left transition-all ${
-                  !useCustom && selected === a.value
-                    ? 'border-purple-500 bg-purple-50 shadow-md'
-                    : 'border-gray-200 hover:border-purple-300 hover:bg-purple-50/50'
+                  active
+                    ? 'border-violet-500 bg-violet-50 shadow-soft'
+                    : 'border-line hover:border-violet-400 hover:bg-violet-50/50'
                 }`}
               >
-                <span className="text-2xl">{a.emoji}</span>
+                <Icon size={24} strokeWidth={2} className={active ? 'text-violet-600' : 'text-ink-500'} />
                 <div>
-                  <p className="font-black text-gray-900">{a.label}</p>
-                  <p className="text-xs text-gray-400">{a.desc}</p>
+                  <p className="font-black text-ink-900">{a.label}</p>
+                  <p className="text-xs text-ink-400">{a.desc}</p>
                 </div>
               </button>
-            ))}
+              );
+            })}
           </div>
 
           {/* Montant libre */}
@@ -158,10 +178,10 @@ export default function Donate() {
             <button
               onClick={() => setUseCustom(true)}
               className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl border-2 transition-all ${
-                useCustom ? 'border-purple-500 bg-purple-50' : 'border-gray-200 hover:border-purple-300'
+                useCustom ? 'border-violet-500 bg-violet-50' : 'border-line hover:border-violet-400'
               }`}
             >
-              <span className="font-semibold text-gray-700">💝 Autre montant</span>
+              <span className="flex items-center gap-2 font-semibold text-ink-700"><Gift size={18} strokeWidth={2} className="text-ink-500" /> Autre montant</span>
               {useCustom && (
                 <div className="flex items-center gap-1">
                   <input
@@ -172,10 +192,10 @@ export default function Donate() {
                     onChange={e => setCustom(e.target.value)}
                     onClick={e => e.stopPropagation()}
                     placeholder="0"
-                    className="w-20 text-right font-black text-gray-900 bg-transparent border-none outline-none text-lg"
+                    className="w-20 text-right font-black text-ink-900 bg-transparent border-none outline-none text-lg"
                     autoFocus
                   />
-                  <span className="font-black text-gray-400">€</span>
+                  <span className="font-black text-ink-400">€</span>
                 </div>
               )}
             </button>
@@ -183,59 +203,51 @@ export default function Donate() {
 
           {/* Nom optionnel */}
           <div className="mb-6">
-            <p className="text-xs text-gray-400 font-bold uppercase mb-2">Ton prénom (optionnel)</p>
+            <p className="text-xs text-ink-400 font-bold uppercase mb-2">Ton prénom (optionnel)</p>
             <input
               value={name}
               onChange={e => setName(e.target.value)}
               placeholder="Ex: Yasmine"
               maxLength={30}
-              className="w-full border-2 border-gray-200 focus:border-purple-400 rounded-xl px-4 py-2.5 text-sm outline-none transition-colors"
+              className="w-full border-2 border-line focus:border-violet-400 rounded-xl px-4 py-2.5 text-sm outline-none transition-colors"
             />
-            <p className="text-xs text-gray-400 mt-1">Apparaîtra dans le mur des donateurs 💜</p>
+            <p className="flex items-center gap-1.5 text-xs text-ink-400 mt-1">Apparaîtra dans le mur des donateurs <Heart size={12} strokeWidth={2} className="fill-current text-violet-500" /></p>
           </div>
 
           {/* Bouton principal — PayPal.me */}
           <button
             onClick={handleDonate}
             disabled={finalAmount < 1}
-            className="w-full bg-gradient-to-r from-purple-500 to-teal-500 hover:from-purple-600 hover:to-teal-600 disabled:opacity-40 text-white font-black text-lg py-4 rounded-2xl transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0"
+            className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-violet-500 to-teal-500 hover:from-violet-600 hover:to-teal-600 disabled:opacity-40 text-white font-black text-lg py-4 rounded-2xl transition-all shadow-card hover:shadow-card hover:-translate-y-0.5 active:translate-y-0"
           >
-            {finalAmount >= 1 ? `💜 Donner ${finalAmount}€ via PayPal` : 'Choisir un montant'}
+            {finalAmount >= 1
+              ? <><Heart size={20} strokeWidth={2} className="fill-current" /> Donner {finalAmount}€ via PayPal</>
+              : 'Choisir un montant'}
           </button>
 
           {/* Méthodes acceptées */}
-          <div className="mt-4 bg-slate-50 rounded-2xl p-3">
-            <p className="text-xs text-gray-400 text-center font-bold mb-2">Méthodes acceptées</p>
+          <div className="mt-4 bg-surface-soft rounded-2xl p-3">
+            <p className="text-xs text-ink-400 text-center font-bold mb-2">Méthodes acceptées</p>
             <div className="flex justify-center items-center gap-4">
-              <div className="flex flex-col items-center gap-1">
-                <span className="text-xl">💳</span>
-                <span className="text-xs text-gray-500">Carte CB</span>
-              </div>
-              <div className="flex flex-col items-center gap-1">
-                <span className="text-xl">🅿️</span>
-                <span className="text-xs text-gray-500">PayPal</span>
-              </div>
-              <div className="flex flex-col items-center gap-1">
-                <span className="text-xl">📱</span>
-                <span className="text-xs text-gray-500">Google Pay</span>
-              </div>
-              <div className="flex flex-col items-center gap-1">
-                <span className="text-xl">🍎</span>
-                <span className="text-xs text-gray-500">Apple Pay</span>
-              </div>
+              {PAY_METHODS.map(({ icon: Icon, label }) => (
+                <div key={label} className="flex flex-col items-center gap-1">
+                  <Icon size={20} strokeWidth={2} className="text-ink-500" />
+                  <span className="text-xs text-ink-500">{label}</span>
+                </div>
+              ))}
             </div>
           </div>
 
-          <p className="text-xs text-gray-400 text-center mt-3">
-            🔒 Paiement sécurisé · Aucun compte PayPal requis
+          <p className="flex items-center justify-center gap-1.5 text-xs text-ink-400 text-center mt-3">
+            <Lock size={14} strokeWidth={2} /> Paiement sécurisé · Aucun compte PayPal requis
           </p>
         </motion.div>
       </section>
 
       {/* Mur des donateurs */}
       <section className="max-w-3xl mx-auto px-6 pb-16">
-        <h2 className="text-2xl font-black text-center text-gray-900 mb-2">💜 Ils ont déjà soutenu</h2>
-        <p className="text-gray-400 text-center text-sm mb-8">La communauté TDAH qui croit au projet</p>
+        <h2 className="flex items-center justify-center gap-2 text-2xl font-black text-center text-ink-900 mb-2"><Heart size={22} strokeWidth={2} className="fill-current text-violet-500" /> Ils ont déjà soutenu</h2>
+        <p className="text-ink-400 text-center text-sm mb-8">La communauté TDAH qui croit au projet</p>
         <div className="grid md:grid-cols-3 gap-4">
           {DONORS.map((d, i) => (
             <motion.div
@@ -244,18 +256,18 @@ export default function Donate() {
               whileInView={{ opacity: 1, scale: 1 }}
               viewport={{ once: true }}
               transition={{ delay: i * 0.1 }}
-              className="bg-white border border-purple-100 rounded-2xl p-5 shadow-sm"
+              className="bg-white border border-line rounded-2xl p-5 shadow-soft"
             >
               <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center font-black text-purple-600">
+                <div className="w-10 h-10 bg-violet-100 rounded-full flex items-center justify-center font-black text-violet-600">
                   {d.name[0]}
                 </div>
                 <div>
-                  <p className="font-bold text-gray-900 text-sm">{d.name}</p>
-                  <p className="text-purple-600 font-black text-sm">{d.amount}</p>
+                  <p className="font-bold text-ink-900 text-sm">{d.name}</p>
+                  <p className="text-violet-600 font-black text-sm">{d.amount}</p>
                 </div>
               </div>
-              <p className="text-gray-500 text-sm italic">"{d.msg}"</p>
+              <p className="text-ink-500 text-sm italic">"{d.msg}"</p>
             </motion.div>
           ))}
         </div>
@@ -263,25 +275,25 @@ export default function Donate() {
 
       {/* Message personnel */}
       <section className="max-w-2xl mx-auto px-6 pb-20 text-center">
-        <div className="bg-gradient-to-br from-purple-50 to-teal-50 rounded-3xl p-8 border border-purple-100">
-          <div className="w-16 h-16 bg-purple-500 rounded-full flex items-center justify-center text-white font-black text-2xl mx-auto mb-4">T</div>
-          <p className="text-gray-700 leading-relaxed italic mb-4">
+        <div className="bg-gradient-to-br from-violet-50 to-teal-50 rounded-3xl p-8 border border-line">
+          <div className="w-16 h-16 bg-violet-500 rounded-full flex items-center justify-center text-white font-black text-2xl mx-auto mb-4">T</div>
+          <p className="text-ink-700 leading-relaxed italic mb-4">
             "Je suis adulte TDAH et j'ai passé ma vie à me sentir incompris. FocusBrain est né de cette douleur —
             l'envie de créer un espace où notre cerveau différent est une force, pas un défaut.
             Chaque don, même petit, me permet de continuer à construire cet outil pour nous tous."
           </p>
-          <p className="font-black text-gray-900">Tarik — Fondateur FocusBrain</p>
-          <p className="text-purple-500 text-sm">TDAH Combiné · Marrakech, Maroc</p>
+          <p className="font-black text-ink-900">Tarik — Fondateur FocusBrain</p>
+          <p className="text-violet-600 text-sm">TDAH Combiné · Marrakech, Maroc</p>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="text-center py-6 text-gray-400 text-sm border-t border-gray-100">
-        <p>FocusBrain · Fait avec 💜 par et pour la communauté TDAH</p>
+      <footer className="text-center py-6 text-ink-400 text-sm border-t border-line">
+        <p className="flex items-center justify-center gap-1.5">FocusBrain · Fait avec <Heart size={14} strokeWidth={2} className="fill-current text-violet-500" /> par et pour la communauté TDAH</p>
         <p className="mt-1">
-          <Link to="/" className="text-teal-500 hover:underline">Retour à l'accueil</Link>
+          <Link to="/" className="text-teal-600 hover:underline">Retour à l'accueil</Link>
           {' · '}
-          <a href="mailto:tifaqtarik@gmail.com" className="text-teal-500 hover:underline">Contact</a>
+          <a href="mailto:tifaqtarik@gmail.com" className="text-teal-600 hover:underline">Contact</a>
         </p>
       </footer>
 
@@ -294,32 +306,32 @@ export default function Donate() {
             onClick={() => setShowConfirm(false)}
           >
             <motion.div
-              className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl text-center"
+              className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-card text-center"
               initial={{ scale: 0.9, y: 10 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9 }}
               onClick={e => e.stopPropagation()}
             >
-              <p className="text-4xl mb-4">💜</p>
-              <h3 className="text-2xl font-black text-gray-900 mb-2">Confirmer le don</h3>
-              <p className="text-gray-500 mb-1">Tu vas donner</p>
-              <p className="text-4xl font-black text-purple-600 mb-1">{finalAmount}€</p>
-              {name && <p className="text-gray-400 text-sm mb-4">en tant que <strong>{name}</strong></p>}
-              <p className="text-gray-400 text-sm mb-4">
+              <span className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-violet-50 text-violet-600 mb-4"><Heart size={30} strokeWidth={2} className="fill-current" /></span>
+              <h3 className="text-2xl font-black text-ink-900 mb-2">Confirmer le don</h3>
+              <p className="text-ink-500 mb-1">Tu vas donner</p>
+              <p className="text-4xl font-black text-violet-600 mb-1">{finalAmount}€</p>
+              {name && <p className="text-ink-400 text-sm mb-4">en tant que <strong>{name}</strong></p>}
+              <p className="text-ink-400 text-sm mb-4">
                 Tu seras redirigé(e) vers <strong>PayPal.me</strong> — tu peux payer par carte bancaire, Google Pay ou compte PayPal, sans restriction de pays.
               </p>
               {/* Méthodes */}
-              <div className="flex justify-center gap-4 mb-5 text-2xl">
-                <span title="Carte bancaire">💳</span>
-                <span title="PayPal">🅿️</span>
-                <span title="Google Pay">📱</span>
-                <span title="Apple Pay">🍎</span>
+              <div className="flex justify-center gap-4 mb-5 text-ink-500">
+                <CreditCard size={24} strokeWidth={2} aria-label="Carte bancaire" />
+                <Wallet size={24} strokeWidth={2} aria-label="PayPal" />
+                <Smartphone size={24} strokeWidth={2} aria-label="Google Pay" />
+                <Apple size={24} strokeWidth={2} aria-label="Apple Pay" />
               </div>
               <button
                 onClick={confirmDonate}
-                className="w-full bg-gradient-to-r from-purple-500 to-teal-500 text-white font-black py-4 rounded-2xl mb-3 hover:shadow-lg transition-all"
+                className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-violet-500 to-teal-500 text-white font-black py-4 rounded-2xl mb-3 hover:shadow-card transition-all"
               >
-                Continuer vers PayPal 🔒
+                Continuer vers PayPal <Lock size={18} strokeWidth={2} />
               </button>
-              <button onClick={() => setShowConfirm(false)} className="text-gray-400 text-sm">
+              <button onClick={() => setShowConfirm(false)} className="text-ink-400 text-sm">
                 Annuler
               </button>
             </motion.div>
