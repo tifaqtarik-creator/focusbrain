@@ -91,9 +91,8 @@ export default function Dashboard() {
   const [slotCategory, setSlotCategory] = useState('travail');
   const [ambiance,     setAmbiance]     = useState('silence');
   const [energy,       setEnergy]       = useState('moyen');
-  // Type de session + description + récurrence
+  // Type de session + récurrence
   const [slotType,    setSlotType]    = useState<'INSTANT' | 'SCHEDULED' | 'RECURRING'>('SCHEDULED');
-  const [description, setDescription] = useState('');
   const [recFreq,     setRecFreq]     = useState<'DAILY' | 'WEEKLY'>('WEEKLY');
   const [recDays,     setRecDays]     = useState<number[]>([]);
   const [recCount,    setRecCount]    = useState(4);
@@ -204,7 +203,7 @@ export default function Dashboard() {
       qc.invalidateQueries({ queryKey: ['slots-mine'] });
       setCreateModal(null);
       setCreatorTask(''); setTaskList([]); setSlotCategory('travail'); setAmbiance('silence'); setEnergy('moyen');
-      setSlotType('SCHEDULED'); setDescription(''); setRecFreq('WEEKLY'); setRecDays([]); setRecCount(4);
+      setSlotType('SCHEDULED'); setRecFreq('WEEKLY'); setRecDays([]); setRecCount(4);
     },
   });
 
@@ -754,18 +753,6 @@ export default function Dashboard() {
                 </div>
               )}
 
-              {/* Description facultative */}
-              <p className="text-sm font-bold text-ink-700 mb-2">
-                {sc.descriptionLabel} <span className="text-ink-400 font-normal ml-1">{sc.optional}</span>
-              </p>
-              <textarea
-                value={description}
-                onChange={e => setDescription(e.target.value.slice(0, 500))}
-                placeholder={sc.descriptionPlaceholder}
-                rows={2}
-                className="w-full border-2 border-line focus:border-teal-400 rounded-xl px-4 py-2.5 text-sm outline-none mb-4 resize-none"
-              />
-
               {/* Ambiance */}
               <p className="text-sm font-bold text-ink-700 mb-2">Ambiance</p>
               <div className="grid grid-cols-2 gap-2 mb-4">
@@ -794,7 +781,6 @@ export default function Dashboard() {
                   ...(slotType !== 'INSTANT' && { startTime: createStart().toISOString() }),
                   duration,
                   tasks: [...taskList, creatorTask.trim()].filter(Boolean),
-                  description: description.trim() || undefined,
                   category: slotCategory,
                   ambiance,
                   energy,
