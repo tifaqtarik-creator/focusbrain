@@ -385,36 +385,59 @@ export default function DayPlannerPage() {
 }
 
 // ── Bande calendaire ───────────────────────────────────────────────────────────
+// ── Bande calendaire — style « ligne du temps » (frise) ─────────────────────────
 function CalendarStrip({ activeDate, tasksByDate, onSelect }: { activeDate: string; tasksByDate: Record<string, Task[]>; onSelect: (d: string) => void }) {
   const t = today();
+  const PAGE_BG = '#F5F8F7'; // = surface-soft, pour détacher les nœuds de la ligne
   const days = Array.from({ length: 15 }, (_, i) => {
     const d = new Date(); d.setDate(d.getDate() - 7 + i);
     const ds = d.toISOString().split('T')[0];
     const tasks = tasksByDate[ds] || [];
     const done = tasks.filter(x => x.done).length;
     return {
-      date: ds, label: d.toLocaleDateString('fr-FR', { weekday: 'short' }), num: d.getDate(),
-      isToday: ds === t, isPast: ds < t, isFuture: ds > t,
-      total: tasks.length, complete: tasks.length > 0 && done === tasks.length,
+      date: ds, num: d.getDate(), label: d.toLocaleDateString('fr-FR', { weekday: 'short' }),
+      isToday: ds === t, isActive: ds === activeDate, isFuture: ds > t,
+      total: tasks.length,
+      complete: tasks.length > 0 && done === tasks.length,
       overdue: ds < t && tasks.length > 0 && done < tasks.length,
+      futureTasks: ds > t && tasks.length > 0,
     };
   });
+  const W = 46;                                   // largeur d'un nœud (px)
+  const iToday = days.findIndex(d => d.isToday);
+  const fillW = (iToday + 0.5) * W;               // progression jusqu'au centre d'aujourd'hui
+  const dotColor = (d: typeof days[number]) =>
+    d.complete ? '#2E9D89' : d.overdue ? '#DB9A45' : d.futureTasks ? '#7077B0' : '#D7E0DD';
+
   return (
-    <div className="flex gap-1.5 overflow-x-auto pb-1" style={{ touchAction: 'pan-x' }}>
-      {days.map(d => (
-        <button key={d.date} onClick={() => onSelect(d.date)} aria-pressed={d.date === activeDate}
-          className={`shrink-0 w-12 py-2 rounded-xl flex flex-col items-center gap-0.5 border-2 transition-all ${
-            d.date === activeDate ? 'border-teal-500 bg-teal-50' : d.isToday ? 'border-teal-200 bg-white' : 'border-line bg-white'
-          }`}>
-          <span className="text-[10px] text-ink-400">{d.label}</span>
-          <span className={`text-sm font-bold ${d.date === activeDate ? 'text-teal-700' : 'text-ink-700'}`}>{d.num}</span>
-          {d.complete ? <span className="text-[10px] text-teal-500">●</span>
-            : d.overdue ? <span className="text-[10px] text-amber-500">●</span>
-            : d.isFuture && d.total > 0 ? <span className="text-[10px] text-violet-500">●</span>
-            : d.isFuture ? <span className="text-[10px] text-ink-400">+</span>
-            : <span className="text-[10px] text-transparent">·</span>}
-        </button>
-      ))}
+    <div className="overflow-x-auto pb-1" style={{ touchAction: 'pan-x' }}>
+      <div className="relative" style={{ width: days.length * W, minWidth: '100%' }}>
+        {/* ligne de fond + progression jusqu'à aujourd'hui */}
+        <div className="absolute h-[3px] rounded-full" style={{ left: 0, width: days.length * W, top: 20, background: '#E4EBE9' }} />
+        <div className="absolute h-[3px] rounded-full bg-teal-500" style={{ left: 0, width: fillW, top: 20 }} />
+        {/* nœuds */}
+        <div className="flex relative">
+          {days.map(d => (
+            <button key={d.date} onClick={() => onSelect(d.date)} aria-pressed={d.isActive} aria-label={d.label + ' ' + d.num}
+              className="shrink-0 flex flex-col items-center" style={{ width: W }}>
+              {d.isActive ? (
+                <span className="rounded-full bg-teal-500 text-white text-sm font-bold flex items-center justify-center"
+                  style={{ width: 34, height: 34, marginTop: 3, border: `3px solid ${PAGE_BG}` }}>{d.num}</span>
+              ) : (
+                <span className="rounded-full" style={{
+                  width: d.isToday ? 15 : 12, height: d.isToday ? 15 : 12,
+                  marginTop: d.isToday ? 13 : 14,
+                  background: d.isToday ? '#2E9D89' : dotColor(d),
+                  border: `3px solid ${PAGE_BG}`,
+                }} />
+              )}
+              <span className={`text-[11px] mt-1.5 ${d.isActive ? 'text-teal-700 font-bold' : d.isToday ? 'text-teal-600 font-semibold' : 'text-ink-400'}`}>
+                {d.isActive ? (d.isToday ? 'auj.' : d.label) : (d.isToday ? 'auj.' : d.num)}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
