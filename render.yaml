@@ -50,3 +50,5 @@ services:
         sync: false
       - key: CLOUDINARY_URL
         sync: false          # stockage durable des photos/pièces jointes (cloudinary://key:secret@cloud)
+      - key: ANTHROPIC_API_KEY
+        sync: false          # clé API Claude pour « Générer ma journée avec l'IA » (à coller dans Render → Environment)

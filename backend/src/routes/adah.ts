@@ -504,6 +504,12 @@ router.get('/stats', async (req: AuthRequest, res) => {
 // ── POST /api/adah/generate-day — Génère un planning de journée TDAH ─────────
 router.post('/generate-day', async (req: AuthRequest, res) => {
   const { date, context } = req.body;
+
+  // IA non configurée (pas de clé Anthropic) → message clair exploitable par le front
+  if (!getAnthropicKey()) {
+    return res.status(200).json({ tasks: [], error: 'IA non configurée', code: 'NO_AI' });
+  }
+
   const user = await prisma.user.findUnique({
     where: { id: req.userId! },
     select: { name: true, tdahType: true, workObjectives: true },

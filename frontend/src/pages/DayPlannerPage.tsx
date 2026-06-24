@@ -42,6 +42,9 @@ export default function DayPlannerPage() {
   const [showPrayerSettings, setShowPrayerSettings] = useState(false);
   const [aiContext, setAiContext]   = useState('');
   const [aiLoading, setAiLoading]   = useState(false);
+  const [showAI, setShowAI]         = useState(false);            // modal « Générer avec l'IA »
+  const [aiError, setAiError]       = useState<string | null>(null);
+  const [aiCount, setAiCount]       = useState<number | null>(null); // toast succès
 
   const isFuture = activeDate > today();
   const tip = getDailyTip();
@@ -90,16 +93,30 @@ export default function DayPlannerPage() {
   };
 
   const generateAI = async () => {
-    setAiLoading(true);
+    setAiLoading(true); setAiError(null);
     try {
       const res = await api.post('/adah/generate-day', { date: activeDate, context: aiContext });
-      (res.data.tasks || []).forEach((t: any) => addTask({
+      const tasks: any[] = res.data?.tasks || [];
+      // L'IA n'est pas configurée sur le serveur, ou indisponible
+      if (res.data?.code === 'NO_AI') {
+        setAiError("L'IA n'est pas encore configurée sur le serveur. Réessaie plus tard.");
+        setAiLoading(false); return;
+      }
+      if (tasks.length === 0) {
+        setAiError("L'IA est momentanément indisponible. Réessaie dans un instant.");
+        setAiLoading(false); return;
+      }
+      tasks.forEach((t) => addTask({
         title: t.title, category: t.category, priority: t.priority || 'med',
         duration: t.duration || 30, timeSlot: t.timeSlot || '', note: t.note || '',
         xp: computeTaskXP(t.priority || 'med', t.duration || 30),
       }));
-      setAiContext('');
-    } catch { /* ignore */ }
+      setAiContext(''); setShowAI(false);
+      setAiCount(tasks.length);
+      setTimeout(() => setAiCount(null), 4000);
+    } catch {
+      setAiError("L'IA est momentanément indisponible. Réessaie dans un instant.");
+    }
     setAiLoading(false);
   };
 
@@ -124,6 +141,10 @@ export default function DayPlannerPage() {
               <p className="text-sm text-ink-400">{isFuture ? 'Planification future' : activeDate === today() ? "Aujourd'hui" : 'Jour passé'}</p>
             </div>
             <div className="flex gap-2">
+              <button onClick={() => { setAiError(null); setShowAI(true); }} title="Générer ma journée avec l'IA" aria-label="Générer avec l'IA"
+                className="bg-violet-100 text-violet-700 px-3 py-2 rounded-xl hover:bg-violet-200">
+                <Sparkles size={18} strokeWidth={2} />
+              </button>
               <button onClick={() => setShowRewards(true)} title="Récompenses" aria-label="Récompenses"
                 className="bg-surface-muted text-ink-600 px-3 py-2 rounded-xl hover:bg-line">
                 <Trophy size={18} strokeWidth={2} />
@@ -292,6 +313,52 @@ export default function DayPlannerPage() {
               setFocusTask(null);
             }}
           />
+        )}
+      </AnimatePresence>
+
+      {/* Modal — Générer ma journée avec l'IA (accessible en permanence) */}
+      <AnimatePresence>
+        {showAI && (
+          <motion.div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowAI(false)}>
+            <motion.div className="bg-white rounded-3xl w-full max-w-md shadow-card p-5"
+              initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }}
+              onClick={e => e.stopPropagation()}>
+              <h3 className="font-black text-ink-900 text-lg mb-1 flex items-center gap-2">
+                <BrainCircuit size={20} strokeWidth={2} className="text-violet-600" /> Générer ma journée avec l'IA
+              </h3>
+              <p className="text-sm text-ink-500 mb-4">Décris ta journée — l'IA propose 6 à 8 tâches adaptées au TDAH, réparties intelligemment.</p>
+              <input value={aiContext} onChange={e => setAiContext(e.target.value)} autoFocus
+                onKeyDown={e => { if (e.key === 'Enter' && !aiLoading) generateAI(); }}
+                placeholder="Ex : journée de travail + sport + courses"
+                className="w-full border-2 border-line focus:border-violet-400 rounded-xl px-4 py-3 text-sm outline-none mb-2" />
+              {aiError && (
+                <p className="text-sm text-red-600 bg-red-50 rounded-xl px-3 py-2 mb-2 flex items-center gap-1.5">
+                  <X size={15} strokeWidth={2.5} /> {aiError}
+                </p>
+              )}
+              <div className="flex gap-3 mt-2">
+                <button onClick={() => setShowAI(false)}
+                  className="flex-1 border-2 border-line text-ink-500 font-bold py-3 rounded-xl hover:bg-surface-soft text-sm">Annuler</button>
+                <button onClick={generateAI} disabled={aiLoading}
+                  className="flex-[1.6] bg-violet-500 hover:bg-violet-600 disabled:opacity-50 text-white font-black py-3 rounded-xl text-sm inline-flex items-center justify-center gap-2">
+                  {aiLoading
+                    ? <><Hourglass size={16} strokeWidth={2} className="animate-pulse" /> L'IA construit ta journée…</>
+                    : <><Sparkles size={16} strokeWidth={2} /> Générer ma journée</>}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Toast — tâches ajoutées par l'IA */}
+      <AnimatePresence>
+        {aiCount !== null && (
+          <motion.div className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-ink-900 text-white text-sm font-bold px-4 py-2.5 rounded-xl shadow-card z-50 inline-flex items-center gap-2"
+            initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 12 }}>
+            <Sparkles size={15} strokeWidth={2} className="text-violet-300" /> {aiCount} tâche{aiCount > 1 ? 's' : ''} ajoutée{aiCount > 1 ? 's' : ''}
+          </motion.div>
         )}
       </AnimatePresence>
 
