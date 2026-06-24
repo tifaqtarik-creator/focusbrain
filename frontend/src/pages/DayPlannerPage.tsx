@@ -6,13 +6,13 @@ import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ClipboardList, CheckCircle2, Plus, Trash2, Pencil, Printer, Trophy, Lightbulb,
-  Sparkles, BrainCircuit, Hourglass, BarChart3, Flame, Clock, Timer, User,
+  Sparkles, BrainCircuit, Hourglass, Flame, Clock, Timer, User,
   Landmark, Settings, X, Rocket, Medal, Lock, MapPin, Check, Play, Pause, RotateCcw,
 } from 'lucide-react';
 import { usePlannerContext, Task, PrayerSettings } from '../context/PlannerContext';
 import {
   CATEGORIES, BADGES, getDailyTip, computeTaskXP,
-  levelTitle, xpProgressInLevel, SUGGESTIONS, PRAYERS, PRAYER_CITIES, TaskSuggestion,
+  levelTitle, SUGGESTIONS, PRAYERS, PRAYER_CITIES, TaskSuggestion,
 } from '../data/plannerData';
 import { usePrayerTimes, PrayerTimings } from '../hooks/usePrayerTimes';
 import api from '../lib/api';
@@ -82,7 +82,6 @@ export default function DayPlannerPage() {
   const done = tasks.filter(t => t.done).length;
   const progress = total ? Math.round((done / total) * 100) : 0;
   const totalMinutes = tasks.reduce((s, t) => s + t.duration, 0);
-  const { current: xpCur, needed: xpNeed } = xpProgressInLevel(profile.totalXP);
   const counts = tasks.reduce((acc, t) => { acc[t.category] = (acc[t.category] || 0) + 1; return acc; }, {} as Record<string, number>);
 
   const printDay = () => {
@@ -117,94 +116,54 @@ export default function DayPlannerPage() {
 
       <div className="no-print max-w-3xl mx-auto px-5 py-6 pb-32">
 
-        {/* Conseil du jour */}
-        <div className="bg-teal-50 border border-teal-100 rounded-2xl px-4 py-3 mb-4">
-          <p className="text-sm text-ink-700 flex items-center gap-2">
-            <Lightbulb size={16} strokeWidth={2} className="shrink-0 text-teal-600" />
-            <span><strong>Conseil du jour :</strong> {tip}</span>
-          </p>
-        </div>
-
-        {/* En-tête : date + XP + niveau */}
-        <div className="bg-white border border-line rounded-2xl p-5 mb-4 shadow-card">
+        {/* EN-TÊTE COMPACT — date · niveau · progression du jour */}
+        <div className="bg-white border border-line rounded-2xl p-4 mb-3 shadow-card">
           <div className="flex items-start justify-between mb-3">
             <div>
-              <h1 className="text-xl font-black text-ink-900 capitalize">{fmtFullDate(activeDate)}</h1>
+              <h1 className="text-xl font-black text-ink-900 capitalize leading-tight">{fmtFullDate(activeDate)}</h1>
               <p className="text-sm text-ink-400">{isFuture ? 'Planification future' : activeDate === today() ? "Aujourd'hui" : 'Jour passé'}</p>
             </div>
             <div className="flex gap-2">
               <button onClick={() => setShowRewards(true)} title="Récompenses" aria-label="Récompenses"
-                className="bg-violet-100 text-violet-700 px-3 py-2 rounded-xl hover:bg-violet-200">
+                className="bg-surface-muted text-ink-600 px-3 py-2 rounded-xl hover:bg-line">
                 <Trophy size={18} strokeWidth={2} />
               </button>
               <button onClick={printDay} title="Imprimer" aria-label="Imprimer"
-                className="bg-surface-muted text-ink-700 px-3 py-2 rounded-xl hover:bg-line">
+                className="bg-surface-muted text-ink-600 px-3 py-2 rounded-xl hover:bg-line">
                 <Printer size={18} strokeWidth={2} />
               </button>
             </div>
           </div>
-          {/* Barre XP / niveau */}
+
+          {/* Progression du jour + niveau (compact) */}
           <div className="flex items-center gap-3" aria-live="polite">
-            <div className="w-12 h-12 rounded-2xl bg-teal-500 flex flex-col items-center justify-center text-white shrink-0">
-              <span className="text-base font-black leading-none">{profile.level}</span>
+            <button onClick={() => setShowRewards(true)} title={`Niveau ${profile.level} · ${profile.totalXP} XP`}
+              className="w-11 h-11 rounded-xl bg-teal-500 text-white flex flex-col items-center justify-center shrink-0">
+              <span className="text-sm font-black leading-none">{profile.level}</span>
               <span className="text-[8px]">niv.</span>
-            </div>
-            <div className="flex-1">
-              <div className="flex justify-between text-xs mb-1">
-                <span className="font-bold text-ink-700">{levelTitle(profile.level)}</span>
-                <span className="text-ink-400">{xpCur}/{xpNeed} XP · {profile.totalXP} total</span>
+            </button>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between text-xs mb-1">
+                <span className="font-bold text-ink-700">{done}/{total} faites · {progress}%</span>
+                <span className="text-ink-400 flex items-center gap-2">
+                  {profile.streak >= 1 && (
+                    <span className="flex items-center gap-0.5 text-amber-600 font-bold"><Flame size={12} strokeWidth={2} />{profile.streak}j</span>
+                  )}
+                  <span>{Math.floor(totalMinutes / 60)}h{String(totalMinutes % 60).padStart(2, '0')}</span>
+                </span>
               </div>
               <div className="w-full bg-surface-muted rounded-full h-2.5">
                 <motion.div className="bg-teal-500 h-2.5 rounded-full"
-                  initial={{ width: 0 }} animate={{ width: `${(xpCur / xpNeed) * 100}%` }} transition={{ duration: 0.6 }} />
+                  initial={{ width: 0 }} animate={{ width: `${progress}%` }} transition={{ duration: 0.5 }} />
               </div>
             </div>
           </div>
         </div>
 
-        {/* Bandeau prières */}
-        <PrayerBanner date={activeDate} settings={prayerSettings} doneKeys={prayerDone}
-          onTimings={handlePrayerTimings} onOpenSettings={() => setShowPrayerSettings(true)} />
-
-        {/* Bande calendaire */}
+        {/* Bande calendaire (sélecteur de jour) */}
         <CalendarStrip activeDate={activeDate} tasksByDate={tasksByDate} onSelect={setActiveDate} />
 
-        {/* Stats du jour */}
-        <div className="grid grid-cols-4 gap-2 my-4">
-          {[
-            { v: total, l: 'Tâches', Icon: ClipboardList },
-            { v: done, l: 'Faites', Icon: CheckCircle2 },
-            { v: `${progress}%`, l: 'Progrès', Icon: BarChart3 },
-            { v: profile.streak, l: 'Streak', Icon: Flame },
-          ].map((s, i) => (
-            <div key={i} className="bg-white border border-line rounded-xl p-3 text-center">
-              <p className="text-lg font-black text-ink-900 flex items-center justify-center gap-1">
-                <s.Icon size={16} strokeWidth={2} className="text-ink-400" />{s.v}
-              </p>
-              <p className="text-xs text-ink-400">{s.l}</p>
-            </div>
-          ))}
-        </div>
-
-        {/* Progression globale */}
-        {total > 0 && (
-          <div className="mb-2">
-            <div className="w-full bg-surface-muted rounded-full h-3">
-              <motion.div className="bg-teal-500 h-3 rounded-full" initial={{ width: 0 }} animate={{ width: `${progress}%` }} />
-            </div>
-            <p className="text-xs text-ink-400 mt-1 text-right">{Math.floor(totalMinutes / 60)}h{String(totalMinutes % 60).padStart(2, '0')} planifiées</p>
-          </div>
-        )}
-
-        {/* Streak banner */}
-        {profile.streak >= 2 && (
-          <div className="bg-amber-400/10 border border-amber-400/40 rounded-xl px-4 py-2 mb-4 text-center">
-            <p className="text-sm text-amber-600 font-bold flex items-center justify-center gap-1.5">
-              <Flame size={16} strokeWidth={2} />
-              {profile.streak} jours d'affilée — continue, c'est ton super-pouvoir !
-            </p>
-          </div>
-        )}
+        <div className="h-3" />
 
         {/* Filtre catégories */}
         <div className="flex gap-2 overflow-x-auto pb-2 mb-3">
@@ -284,6 +243,18 @@ export default function DayPlannerPage() {
             </div>
           </div>
         )}
+
+        {/* ── Secondaire : prières + conseil du jour (en appui, sous les tâches) ── */}
+        <div className="mt-7 space-y-3">
+          <PrayerBanner date={activeDate} settings={prayerSettings} doneKeys={prayerDone}
+            onTimings={handlePrayerTimings} onOpenSettings={() => setShowPrayerSettings(true)} />
+          <div className="bg-teal-50 border border-teal-100 rounded-2xl px-4 py-3">
+            <p className="text-sm text-ink-700 flex items-center gap-2">
+              <Lightbulb size={16} strokeWidth={2} className="shrink-0 text-teal-600" />
+              <span><strong>Conseil du jour :</strong> {tip}</span>
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Bouton flottant ajouter */}
@@ -586,8 +557,9 @@ function AddTaskModal({ task, onSave, onClose }: { task: Task | null; onSave: (d
                   const active = isFamily ? familyTemplate === (s.template || `${s.title} {nom}`) : title === s.title;
                   return (
                     <button key={i} onClick={() => applySuggestion(s)}
-                      className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all ${active ? 'border-transparent text-white' : 'border-line text-ink-500 hover:bg-surface-soft'}`}
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all ${active ? 'border-transparent text-white' : 'border-line text-ink-500 hover:bg-surface-soft'}`}
                       style={active ? { background: cat.borderColor } : {}}>
+                      <s.Icon size={13} strokeWidth={2} style={active ? {} : { color: cat.borderColor }} />
                       {s.title}
                     </button>
                   );

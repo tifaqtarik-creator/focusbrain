@@ -5,6 +5,11 @@ import {
   Sparkles, Droplets, HeartPulse, Utensils, SprayCan, Briefcase, Brain,
   HeartHandshake, UsersRound, FileText, CircleUser, Palette,
   Flame, Trophy, Rocket, Zap, Star, CheckCircle2, Medal, Gem, CalendarCheck,
+  // Suggestions rapides
+  BookOpen, ShowerHead, Brush, Shirt, Pill, PersonStanding, Activity, GlassWater,
+  Dumbbell, BedDouble, Stethoscope, Scale, Glasses, Egg, Salad, ShoppingCart,
+  WashingMachine, Mail, Timer, Phone, NotebookPen, Target, Pause, BellOff, Coffee,
+  House, Gift, MessageCircle, Receipt, CalendarPlus, FolderOpen, ShoppingBag, Wallet, Gamepad2,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -32,89 +37,90 @@ export const CATEGORIES: Record<string, Category> = {
 // ── Suggestions de tâches par catégorie (1 clic = ajoutée, anti-paralysie TDAH) ──
 export interface TaskSuggestion {
   title: string;
+  Icon: LucideIcon;
   duration?: number;
   priority?: 'high' | 'med' | 'low';
   needsName?: boolean;   // true → demande le nom d'une personne (Famille & amis)
-  template?: string;     // ex: '📞 Appeler {nom}' → titre final après saisie du nom
+  template?: string;     // ex: 'Appeler {nom}' → titre final après saisie du nom
 }
 
 export const SUGGESTIONS: Record<string, TaskSuggestion[]> = {
   spiritualite: [
-    { title: '🕌 Prière Fajr', duration: 10, priority: 'high' },
-    { title: '🕌 Prière Dhuhr', duration: 10, priority: 'high' },
-    { title: '🕌 Prière Asr', duration: 10, priority: 'high' },
-    { title: '🕌 Prière Maghrib', duration: 10, priority: 'high' },
-    { title: '🕌 Prière Isha', duration: 10, priority: 'high' },
-    { title: '📖 Lecture du Coran 10 min', duration: 10, priority: 'med' },
+    { title: 'Prière Fajr', Icon: Sparkles, duration: 10, priority: 'high' },
+    { title: 'Prière Dhuhr', Icon: Sparkles, duration: 10, priority: 'high' },
+    { title: 'Prière Asr', Icon: Sparkles, duration: 10, priority: 'high' },
+    { title: 'Prière Maghrib', Icon: Sparkles, duration: 10, priority: 'high' },
+    { title: 'Prière Isha', Icon: Sparkles, duration: 10, priority: 'high' },
+    { title: 'Lecture du Coran 10 min', Icon: BookOpen, duration: 10, priority: 'med' },
   ],
   hygiene: [
-    { title: '🚿 Douche', duration: 15, priority: 'med' },
-    { title: '🪥 Brossage des dents', duration: 5, priority: 'high' },
-    { title: '👕 Préparer mes vêtements', duration: 10, priority: 'low' },
+    { title: 'Douche', Icon: ShowerHead, duration: 15, priority: 'med' },
+    { title: 'Brossage des dents', Icon: Brush, duration: 5, priority: 'high' },
+    { title: 'Préparer mes vêtements', Icon: Shirt, duration: 10, priority: 'low' },
   ],
   health: [
-    { title: '💊 Prendre ma médication', duration: 5, priority: 'high' },
-    { title: '🚶 Marcher 10 min', duration: 10, priority: 'med' },
-    { title: '🧘 Étirements 5 min', duration: 5, priority: 'low' },
-    { title: '💧 Boire de l\'eau', duration: 5, priority: 'low' },
-    { title: '🏋️ Sport 30 min', duration: 30, priority: 'high' },
-    { title: '😴 Sieste 20 min', duration: 20, priority: 'low' },
-    { title: '🦷 Traitement des dents', duration: 30, priority: 'med' },
-    { title: '🧴 Traitement de la peau', duration: 15, priority: 'med' },
-    { title: '⚖️ Suivi poids / obésité', duration: 15, priority: 'med' },
-    { title: '👓 Acheter mes lunettes', duration: 45, priority: 'med' },
+    { title: 'Prendre ma médication', Icon: Pill, duration: 5, priority: 'high' },
+    { title: 'Marcher 10 min', Icon: PersonStanding, duration: 10, priority: 'med' },
+    { title: 'Étirements 5 min', Icon: Activity, duration: 5, priority: 'low' },
+    { title: 'Boire de l\'eau', Icon: GlassWater, duration: 5, priority: 'low' },
+    { title: 'Sport 30 min', Icon: Dumbbell, duration: 30, priority: 'high' },
+    { title: 'Sieste 20 min', Icon: BedDouble, duration: 20, priority: 'low' },
+    { title: 'Traitement des dents', Icon: Stethoscope, duration: 30, priority: 'med' },
+    { title: 'Traitement de la peau', Icon: Droplets, duration: 15, priority: 'med' },
+    { title: 'Suivi poids / obésité', Icon: Scale, duration: 15, priority: 'med' },
+    { title: 'Acheter mes lunettes', Icon: Glasses, duration: 45, priority: 'med' },
   ],
   meals: [
-    { title: '🍳 Petit-déjeuner', duration: 20, priority: 'high' },
-    { title: '🥗 Déjeuner', duration: 30, priority: 'high' },
-    { title: '🍽️ Dîner', duration: 30, priority: 'med' },
-    { title: '🛒 Préparer les repas', duration: 45, priority: 'med' },
-    { title: '💧 Boire 2L d\'eau', duration: 5, priority: 'med' },
+    { title: 'Petit-déjeuner', Icon: Egg, duration: 20, priority: 'high' },
+    { title: 'Déjeuner', Icon: Salad, duration: 30, priority: 'high' },
+    { title: 'Dîner', Icon: Utensils, duration: 30, priority: 'med' },
+    { title: 'Préparer les repas', Icon: Utensils, duration: 45, priority: 'med' },
+    { title: 'Boire 2L d\'eau', Icon: GlassWater, duration: 5, priority: 'med' },
   ],
   home: [
-    { title: '🍽️ Vaisselle', duration: 15, priority: 'med' },
-    { title: '🧺 Lessive', duration: 20, priority: 'low' },
-    { title: '🧹 Ranger 1 zone 10 min', duration: 10, priority: 'low' },
-    { title: '🛏️ Faire le lit', duration: 5, priority: 'low' },
-    { title: '🛒 Courses', duration: 45, priority: 'med' },
+    { title: 'Vaisselle', Icon: Utensils, duration: 15, priority: 'med' },
+    { title: 'Lessive', Icon: WashingMachine, duration: 20, priority: 'low' },
+    { title: 'Ranger 1 zone 10 min', Icon: SprayCan, duration: 10, priority: 'low' },
+    { title: 'Faire le lit', Icon: BedDouble, duration: 5, priority: 'low' },
+    { title: 'Courses', Icon: ShoppingCart, duration: 45, priority: 'med' },
   ],
   work: [
-    { title: '📧 Trier mes emails', duration: 20, priority: 'med' },
-    { title: '🎯 Tâche prioritaire (Pomodoro)', duration: 25, priority: 'high' },
-    { title: '📞 Appels à passer', duration: 15, priority: 'med' },
-    { title: '📝 Planifier demain', duration: 10, priority: 'med' },
+    { title: 'Trier mes emails', Icon: Mail, duration: 20, priority: 'med' },
+    { title: 'Tâche prioritaire (Pomodoro)', Icon: Timer, duration: 25, priority: 'high' },
+    { title: 'Appels à passer', Icon: Phone, duration: 15, priority: 'med' },
+    { title: 'Planifier demain', Icon: NotebookPen, duration: 10, priority: 'med' },
   ],
   adhd: [
-    { title: '📋 Brain dump (vider ma tête)', duration: 10, priority: 'high' },
-    { title: '🎯 Choisir mes 3 priorités', duration: 5, priority: 'high' },
-    { title: '⏸️ Pause sensorielle', duration: 10, priority: 'med' },
-    { title: '📱 Couper les notifications', duration: 5, priority: 'med' },
+    { title: 'Brain dump (vider ma tête)', Icon: Brain, duration: 10, priority: 'high' },
+    { title: 'Choisir mes 3 priorités', Icon: Target, duration: 5, priority: 'high' },
+    { title: 'Pause sensorielle', Icon: Pause, duration: 10, priority: 'med' },
+    { title: 'Couper les notifications', Icon: BellOff, duration: 5, priority: 'med' },
   ],
   family: [
-    { title: '📞 Appeler',                  template: '📞 Appeler {nom}',                  needsName: true, duration: 15, priority: 'med' },
-    { title: '☕ Café avec',                template: '☕ Café avec {nom}',                needsName: true, duration: 60, priority: 'low' },
-    { title: '🏡 Rendre visite à',          template: '🏡 Rendre visite à {nom}',          needsName: true, duration: 90, priority: 'med' },
-    { title: '🎁 Cadeau pour',              template: '🎁 Cadeau pour {nom}',              needsName: true, duration: 30, priority: 'low' },
-    { title: '💬 Prendre des nouvelles de', template: '💬 Prendre des nouvelles de {nom}', needsName: true, duration: 10, priority: 'med' },
-    { title: '🍽️ Repas avec',               template: '🍽️ Repas avec {nom}',               needsName: true, duration: 90, priority: 'low' },
+    { title: 'Appeler',                  Icon: Phone,         template: 'Appeler {nom}',                  needsName: true, duration: 15, priority: 'med' },
+    { title: 'Café avec',                Icon: Coffee,        template: 'Café avec {nom}',                needsName: true, duration: 60, priority: 'low' },
+    { title: 'Rendre visite à',          Icon: House,         template: 'Rendre visite à {nom}',          needsName: true, duration: 90, priority: 'med' },
+    { title: 'Cadeau pour',              Icon: Gift,          template: 'Cadeau pour {nom}',              needsName: true, duration: 30, priority: 'low' },
+    { title: 'Prendre des nouvelles de', Icon: MessageCircle, template: 'Prendre des nouvelles de {nom}', needsName: true, duration: 10, priority: 'med' },
+    { title: 'Repas avec',               Icon: Utensils,      template: 'Repas avec {nom}',               needsName: true, duration: 90, priority: 'low' },
   ],
   social: [
-    { title: '👥 Sortie entre amis', duration: 120, priority: 'low' },
-    { title: '💬 Répondre à mes messages', duration: 15, priority: 'med' },
+    { title: 'Sortie entre amis', Icon: UsersRound, duration: 120, priority: 'low' },
+    { title: 'Répondre à mes messages', Icon: MessageCircle, duration: 15, priority: 'med' },
   ],
   admin: [
-    { title: '📄 Payer une facture', duration: 15, priority: 'high' },
-    { title: '📅 Prendre un rendez-vous', duration: 10, priority: 'med' },
-    { title: '🗂️ Classer mes papiers', duration: 20, priority: 'low' },
+    { title: 'Payer une facture', Icon: Receipt, duration: 15, priority: 'high' },
+    { title: 'Prendre un rendez-vous', Icon: CalendarPlus, duration: 10, priority: 'med' },
+    { title: 'Classer mes papiers', Icon: FolderOpen, duration: 20, priority: 'low' },
   ],
   personal: [
-    { title: '🛍️ Course personnelle', duration: 30, priority: 'low' },
-    { title: '🧾 Gérer mon budget', duration: 20, priority: 'med' },
+    { title: 'Course personnelle', Icon: ShoppingBag, duration: 30, priority: 'low' },
+    { title: 'Gérer mon budget', Icon: Wallet, duration: 20, priority: 'med' },
   ],
   hobby: [
-    { title: '📖 Lecture plaisir', duration: 30, priority: 'low' },
-    { title: '🎨 Activité créative', duration: 45, priority: 'low' },
-    { title: '🎮 Temps de jeu', duration: 30, priority: 'low' },
+    { title: 'Lecture plaisir', Icon: BookOpen, duration: 30, priority: 'low' },
+    { title: 'Activité créative', Icon: Palette, duration: 45, priority: 'low' },
+    { title: 'Temps de jeu', Icon: Gamepad2, duration: 30, priority: 'low' },
   ],
 };
 
