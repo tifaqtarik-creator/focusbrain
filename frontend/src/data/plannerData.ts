@@ -1,25 +1,32 @@
 /**
  * plannerData.ts — Données du planificateur TDAH (catégories, badges, niveaux, XP, conseils)
  */
+import {
+  Sparkles, Droplets, HeartPulse, Utensils, SprayCan, Briefcase, Brain,
+  HeartHandshake, UsersRound, FileText, CircleUser, Palette,
+  Flame, Trophy, Rocket, Zap, Star, CheckCircle2, Medal, Gem, CalendarCheck,
+  type LucideIcon,
+} from 'lucide-react';
+
 export interface Category {
-  id: string; label: string; emoji: string;
+  id: string; label: string; emoji: string; Icon: LucideIcon;
   color: string; textColor: string; borderColor: string;
   xpMultiplier: number; tip: string;
 }
 
 export const CATEGORIES: Record<string, Category> = {
-  spiritualite: { id: 'spiritualite', label: 'Spiritualité',      emoji: '🕌', color: '#E7F4EE', textColor: '#14573A', borderColor: '#2E9E68', xpMultiplier: 1.3, tip: 'La régularité spirituelle ancre ta journée et apaise le mental' },
-  hygiene:  { id: 'hygiene',  label: 'Hygiène & routine',    emoji: '💧', color: '#E1F4F8', textColor: '#0A5360', borderColor: '#1BA0B5', xpMultiplier: 1.1, tip: 'Une routine d\'hygiène stable réduit la charge mentale TDAH' },
-  health:   { id: 'health',   label: 'Santé & bien-être',    emoji: '❤️', color: '#E1F5EE', textColor: '#085041', borderColor: '#1D9E75', xpMultiplier: 1.3, tip: 'La santé passe avant tout — ne la repousse pas' },
-  meals:    { id: 'meals',    label: 'Repas & nutrition',    emoji: '🍽️', color: '#FCF1DA', textColor: '#6E4E08', borderColor: '#C99417', xpMultiplier: 1.0, tip: 'Manger à heures régulières stabilise ton énergie et ta concentration' },
-  home:     { id: 'home',     label: 'Maison & ménage',      emoji: '🧹', color: '#ECEFF3', textColor: '#36414E', borderColor: '#5C6B7C', xpMultiplier: 0.9, tip: 'Range une seule zone à la fois — 10 min suffisent' },
-  work:     { id: 'work',     label: 'Travail / études',     emoji: '💼', color: '#E6F1FB', textColor: '#0C447C', borderColor: '#185FA5', xpMultiplier: 1.0, tip: 'Fractionne en sous-tâches de max 25 min' },
-  adhd:     { id: 'adhd',     label: 'Gestion TDAH',         emoji: '🧠', color: '#EAF3DE', textColor: '#27500A', borderColor: '#3B6D11', xpMultiplier: 1.5, tip: 'Gérer ton TDAH est ta priorité absolue' },
-  family:   { id: 'family',   label: 'Famille & amis',       emoji: '👨‍👩‍👧', color: '#FCE8E4', textColor: '#8A2F1D', borderColor: '#CD4A30', xpMultiplier: 1.1, tip: 'Garder le lien avec tes proches nourrit ton équilibre émotionnel' },
-  social:   { id: 'social',   label: 'Social & sorties',     emoji: '👥', color: '#FBEAF0', textColor: '#72243E', borderColor: '#993556', xpMultiplier: 1.0, tip: 'Le soutien social est un médicament naturel' },
-  admin:    { id: 'admin',    label: 'Administratif',         emoji: '📄', color: '#FAEEDA', textColor: '#633806', borderColor: '#BA7517', xpMultiplier: 1.2, tip: 'Fais-le maintenant, ça ne disparaît pas seul' },
-  personal: { id: 'personal', label: 'Personnel',            emoji: '🏠', color: '#EEEDFE', textColor: '#3C3489', borderColor: '#534AB7', xpMultiplier: 0.9, tip: 'Les tâches perso méritent autant d\'attention' },
-  hobby:    { id: 'hobby',    label: 'Loisirs & créativité', emoji: '🎨', color: '#FAECE7', textColor: '#712B13', borderColor: '#993C1D', xpMultiplier: 0.8, tip: 'Les loisirs rechargent ton énergie cognitive' },
+  spiritualite: { id: 'spiritualite', label: 'Spiritualité',      emoji: '🕌', Icon: Sparkles,      color: '#E7F4EE', textColor: '#14573A', borderColor: '#2E9E68', xpMultiplier: 1.3, tip: 'La régularité spirituelle ancre ta journée et apaise le mental' },
+  hygiene:  { id: 'hygiene',  label: 'Hygiène & routine',    emoji: '💧', Icon: Droplets,      color: '#E1F4F8', textColor: '#0A5360', borderColor: '#1BA0B5', xpMultiplier: 1.1, tip: 'Une routine d\'hygiène stable réduit la charge mentale TDAH' },
+  health:   { id: 'health',   label: 'Santé & bien-être',    emoji: '❤️', Icon: HeartPulse,    color: '#E1F5EE', textColor: '#085041', borderColor: '#1D9E75', xpMultiplier: 1.3, tip: 'La santé passe avant tout — ne la repousse pas' },
+  meals:    { id: 'meals',    label: 'Repas & nutrition',    emoji: '🍽️', Icon: Utensils,      color: '#FCF1DA', textColor: '#6E4E08', borderColor: '#C99417', xpMultiplier: 1.0, tip: 'Manger à heures régulières stabilise ton énergie et ta concentration' },
+  home:     { id: 'home',     label: 'Maison & ménage',      emoji: '🧹', Icon: SprayCan,      color: '#ECEFF3', textColor: '#36414E', borderColor: '#5C6B7C', xpMultiplier: 0.9, tip: 'Range une seule zone à la fois — 10 min suffisent' },
+  work:     { id: 'work',     label: 'Travail / études',     emoji: '💼', Icon: Briefcase,     color: '#E6F1FB', textColor: '#0C447C', borderColor: '#185FA5', xpMultiplier: 1.0, tip: 'Fractionne en sous-tâches de max 25 min' },
+  adhd:     { id: 'adhd',     label: 'Gestion TDAH',         emoji: '🧠', Icon: Brain,         color: '#EAF3DE', textColor: '#27500A', borderColor: '#3B6D11', xpMultiplier: 1.5, tip: 'Gérer ton TDAH est ta priorité absolue' },
+  family:   { id: 'family',   label: 'Famille & amis',       emoji: '👨‍👩‍👧', Icon: HeartHandshake, color: '#FCE8E4', textColor: '#8A2F1D', borderColor: '#CD4A30', xpMultiplier: 1.1, tip: 'Garder le lien avec tes proches nourrit ton équilibre émotionnel' },
+  social:   { id: 'social',   label: 'Social & sorties',     emoji: '👥', Icon: UsersRound,    color: '#FBEAF0', textColor: '#72243E', borderColor: '#993556', xpMultiplier: 1.0, tip: 'Le soutien social est un médicament naturel' },
+  admin:    { id: 'admin',    label: 'Administratif',         emoji: '📄', Icon: FileText,      color: '#FAEEDA', textColor: '#633806', borderColor: '#BA7517', xpMultiplier: 1.2, tip: 'Fais-le maintenant, ça ne disparaît pas seul' },
+  personal: { id: 'personal', label: 'Personnel',            emoji: '🏠', Icon: CircleUser,    color: '#EEEDFE', textColor: '#3C3489', borderColor: '#534AB7', xpMultiplier: 0.9, tip: 'Les tâches perso méritent autant d\'attention' },
+  hobby:    { id: 'hobby',    label: 'Loisirs & créativité', emoji: '🎨', Icon: Palette,       color: '#FAECE7', textColor: '#712B13', borderColor: '#993C1D', xpMultiplier: 0.8, tip: 'Les loisirs rechargent ton énergie cognitive' },
 };
 
 // ── Suggestions de tâches par catégorie (1 clic = ajoutée, anti-paralysie TDAH) ──
@@ -134,7 +141,7 @@ export const PRAYER_CITIES = [
 ];
 
 export interface Badge {
-  id: string; label: string; emoji: string; description: string;
+  id: string; label: string; emoji: string; Icon: LucideIcon; description: string;
   condition: (profile: any, tasksByDate: Record<string, any[]>) => boolean;
   xpBonus: number;
 }
@@ -143,20 +150,20 @@ const totalDone = (tbd: Record<string, any[]>, cat?: string) =>
   Object.values(tbd).flat().filter((t: any) => t.done && (!cat || t.category === cat)).length;
 
 export const BADGES: Badge[] = [
-  { id: 'streak_3',  label: '3 jours de suite',   emoji: '🔥', description: '1 tâche complétée 3 jours consécutifs', condition: p => p.streak >= 3,  xpBonus: 50 },
-  { id: 'streak_7',  label: 'Semaine parfaite',   emoji: '🔥', description: '7 jours de suite actif',                 condition: p => p.streak >= 7,  xpBonus: 150 },
-  { id: 'streak_30', label: 'Mois de champion',   emoji: '🏆', description: '30 jours de suite',                     condition: p => p.streak >= 30, xpBonus: 500 },
-  { id: 'tasks_10',  label: 'Premier décollage',  emoji: '🚀', description: '10 tâches complétées',                  condition: (_p, t) => totalDone(t) >= 10,  xpBonus: 100 },
-  { id: 'tasks_50',  label: 'Machine à faire',    emoji: '⚡', description: '50 tâches complétées',                  condition: (_p, t) => totalDone(t) >= 50,  xpBonus: 300 },
-  { id: 'tasks_100', label: 'Centenaire',         emoji: '⭐', description: '100 tâches complétées',                 condition: (_p, t) => totalDone(t) >= 100, xpBonus: 800 },
-  { id: 'perfect_day', label: 'Journée parfaite', emoji: '✅', description: '100% des tâches d\'une journée',        condition: (_p, t) => Object.values(t).some(ts => ts.length > 0 && ts.every((x: any) => x.done)), xpBonus: 200 },
-  { id: 'health_hero', label: 'Héros de la santé', emoji: '💚', description: '20 tâches Santé complétées',           condition: (_p, t) => totalDone(t, 'health') >= 20, xpBonus: 250 },
-  { id: 'adhd_master', label: 'Maître du TDAH',    emoji: '🧠', description: '10 tâches Gestion TDAH complétées',    condition: (_p, t) => totalDone(t, 'adhd') >= 10,   xpBonus: 300 },
-  { id: 'prayers_5',   label: '5 prières en 1 jour', emoji: '🕌', description: 'Accomplir les 5 prières dans une journée',
+  { id: 'streak_3',  label: '3 jours de suite',   emoji: '🔥', Icon: Flame,        description: '1 tâche complétée 3 jours consécutifs', condition: p => p.streak >= 3,  xpBonus: 50 },
+  { id: 'streak_7',  label: 'Semaine parfaite',   emoji: '🔥', Icon: Flame,        description: '7 jours de suite actif',                 condition: p => p.streak >= 7,  xpBonus: 150 },
+  { id: 'streak_30', label: 'Mois de champion',   emoji: '🏆', Icon: Trophy,       description: '30 jours de suite',                     condition: p => p.streak >= 30, xpBonus: 500 },
+  { id: 'tasks_10',  label: 'Premier décollage',  emoji: '🚀', Icon: Rocket,       description: '10 tâches complétées',                  condition: (_p, t) => totalDone(t) >= 10,  xpBonus: 100 },
+  { id: 'tasks_50',  label: 'Machine à faire',    emoji: '⚡', Icon: Zap,          description: '50 tâches complétées',                  condition: (_p, t) => totalDone(t) >= 50,  xpBonus: 300 },
+  { id: 'tasks_100', label: 'Centenaire',         emoji: '⭐', Icon: Star,         description: '100 tâches complétées',                 condition: (_p, t) => totalDone(t) >= 100, xpBonus: 800 },
+  { id: 'perfect_day', label: 'Journée parfaite', emoji: '✅', Icon: CheckCircle2, description: '100% des tâches d\'une journée',        condition: (_p, t) => Object.values(t).some(ts => ts.length > 0 && ts.every((x: any) => x.done)), xpBonus: 200 },
+  { id: 'health_hero', label: 'Héros de la santé', emoji: '💚', Icon: HeartPulse,  description: '20 tâches Santé complétées',           condition: (_p, t) => totalDone(t, 'health') >= 20, xpBonus: 250 },
+  { id: 'adhd_master', label: 'Maître du TDAH',    emoji: '🧠', Icon: Brain,       description: '10 tâches Gestion TDAH complétées',    condition: (_p, t) => totalDone(t, 'adhd') >= 10,   xpBonus: 300 },
+  { id: 'prayers_5',   label: '5 prières en 1 jour', emoji: '🕌', Icon: Sparkles,  description: 'Accomplir les 5 prières dans une journée',
     condition: (_p, t) => Object.values(t).some(day => day.filter((x: any) => x.done && x.category === 'spiritualite' && x.title.includes('Prière')).length >= 5), xpBonus: 200 },
-  { id: 'level_5',  label: 'Niveau 5 atteint',    emoji: '🎖️', description: 'Atteindre le niveau 5',                condition: p => p.level >= 5,  xpBonus: 0 },
-  { id: 'level_10', label: 'Niveau 10 — Expert',  emoji: '💎', description: 'Atteindre le niveau 10',               condition: p => p.level >= 10, xpBonus: 0 },
-  { id: 'planner',  label: 'Architecte du futur', emoji: '📅', description: 'Planifier 3 jours futurs', condition: (_p, t) => {
+  { id: 'level_5',  label: 'Niveau 5 atteint',    emoji: '🎖️', Icon: Medal,        description: 'Atteindre le niveau 5',                condition: p => p.level >= 5,  xpBonus: 0 },
+  { id: 'level_10', label: 'Niveau 10 — Expert',  emoji: '💎', Icon: Gem,          description: 'Atteindre le niveau 10',               condition: p => p.level >= 10, xpBonus: 0 },
+  { id: 'planner',  label: 'Architecte du futur', emoji: '📅', Icon: CalendarCheck, description: 'Planifier 3 jours futurs', condition: (_p, t) => {
     const today = new Date().toISOString().split('T')[0];
     return Object.keys(t).filter(d => d > today && (t[d]?.length || 0) > 0).length >= 3;
   }, xpBonus: 100 },

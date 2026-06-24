@@ -2,12 +2,12 @@
  * DayPlannerPage.tsx — Planificateur de journée TDAH (ADAH)
  * Catégories · checklist · gamification (XP/niveaux/badges/streaks) · impression · jours futurs
  */
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ClipboardList, CheckCircle2, Plus, Trash2, Pencil, Printer, Trophy, Lightbulb,
   Sparkles, BrainCircuit, Hourglass, BarChart3, Flame, Clock, Timer, User,
-  Landmark, Settings, X, Rocket, Medal, Lock, MapPin, Check,
+  Landmark, Settings, X, Rocket, Medal, Lock, MapPin, Check, Play, Pause, RotateCcw,
 } from 'lucide-react';
 import { usePlannerContext, Task, PrayerSettings } from '../context/PlannerContext';
 import {
@@ -37,6 +37,7 @@ export default function DayPlannerPage() {
 
   const [showAdd, setShowAdd]       = useState(false);
   const [editing, setEditing]       = useState<Task | null>(null);
+  const [focusTask, setFocusTask]   = useState<Task | null>(null); // tâche en cours de minuteur circulaire
   const [showRewards, setShowRewards] = useState(false);
   const [showPrayerSettings, setShowPrayerSettings] = useState(false);
   const [aiContext, setAiContext]   = useState('');
@@ -53,7 +54,7 @@ export default function DayPlannerPage() {
     const existing = tasksByDate[activeDate] || [];
     if (existing.some(t => t.category === 'spiritualite' && t.title.includes('Prière'))) { markPrayerAdded(key); return; }
     PRAYERS.forEach(p => addTask({
-      title: `🕌 Prière ${p.label}`, category: 'spiritualite', priority: 'high',
+      title: `Prière ${p.label}`, category: 'spiritualite', priority: 'high',
       duration: 10, timeSlot: timings[p.key as keyof PrayerTimings] || '', xp: computeTaskXP('high', 10),
     }));
     markPrayerAdded(key);
@@ -215,7 +216,8 @@ export default function DayPlannerPage() {
             <button key={key} onClick={() => setActiveCategory(key)}
               className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-bold transition-all border-2 ${activeCategory === key ? 'border-transparent' : 'border-line bg-white text-ink-500'}`}
               style={activeCategory === key ? { background: cat.color, color: cat.textColor } : {}}>
-              {cat.emoji} {cat.label} ({counts[key]})
+              <cat.Icon size={15} strokeWidth={2} style={{ color: activeCategory === key ? cat.textColor : cat.borderColor }} />
+              {cat.label} ({counts[key]})
             </button>
           ) : null)}
         </div>
@@ -226,7 +228,9 @@ export default function DayPlannerPage() {
           return (
             <div key={cat} className="mb-4">
               <div className="flex items-center gap-2 mb-2">
-                <span className="text-lg">{c.emoji}</span>
+                <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: c.color }}>
+                  <c.Icon size={16} strokeWidth={2} style={{ color: c.borderColor }} />
+                </span>
                 <span className="font-black text-sm" style={{ color: c.textColor }}>{c.label}</span>
                 <span className="text-xs text-ink-400">{catTasks.filter(t => t.done).length}/{catTasks.length}</span>
               </div>
@@ -235,7 +239,8 @@ export default function DayPlannerPage() {
                   <TaskCard key={t.id} task={t} cat={c} isFuture={isFuture}
                     onToggle={() => toggleTask(t.id)}
                     onEdit={() => { setEditing(t); setShowAdd(true); }}
-                    onDelete={() => deleteTask(t.id)} />
+                    onDelete={() => deleteTask(t.id)}
+                    onFocus={() => setFocusTask(t)} />
                 ))}
               </div>
             </div>
@@ -304,6 +309,21 @@ export default function DayPlannerPage() {
         )}
       </AnimatePresence>
 
+      {/* Minuteur circulaire de focus sur une tâche */}
+      <AnimatePresence>
+        {focusTask && (
+          <TaskFocusTimer
+            task={focusTask}
+            cat={CATEGORIES[focusTask.category]}
+            onClose={() => setFocusTask(null)}
+            onComplete={() => {
+              if (focusTask && !focusTask.done) toggleTask(focusTask.id);
+              setFocusTask(null);
+            }}
+          />
+        )}
+      </AnimatePresence>
+
       {/* Panneau récompenses */}
       <AnimatePresence>
         {showRewards && <RewardsPanel profile={profile} onClose={() => setShowRewards(false)} />}
@@ -362,7 +382,7 @@ function CalendarStrip({ activeDate, tasksByDate, onSelect }: { activeDate: stri
 }
 
 // ── Carte tâche ────────────────────────────────────────────────────────────────
-function TaskCard({ task, cat, isFuture, onToggle, onEdit, onDelete }: any) {
+function TaskCard({ task, cat, isFuture, onToggle, onEdit, onDelete, onFocus }: any) {
   return (
     <motion.div layout initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
       className={`flex items-start gap-3 bg-white border rounded-xl p-3 transition-all ${task.done ? 'border-teal-200 opacity-70' : 'border-line'}`}
@@ -387,10 +407,107 @@ function TaskCard({ task, cat, isFuture, onToggle, onEdit, onDelete }: any) {
         </div>
         {task.note && <p className="text-xs text-ink-400 italic mt-1">{task.note}</p>}
       </div>
-      <div className="flex flex-col gap-1.5 shrink-0">
-        <button onClick={onEdit} aria-label="Modifier" className="text-ink-400 hover:text-teal-500"><Pencil size={16} strokeWidth={2} /></button>
-        <button onClick={onDelete} aria-label="Supprimer" className="text-ink-400 hover:text-red-500"><Trash2 size={16} strokeWidth={2} /></button>
+      <div className="flex flex-col items-center gap-1 shrink-0">
+        {!task.done && !isFuture && (
+          <button onClick={onFocus} aria-label="Démarrer le minuteur de focus" title="Démarrer un minuteur"
+            className="w-9 h-9 rounded-xl bg-teal-50 text-teal-600 hover:bg-teal-100 flex items-center justify-center mb-0.5">
+            <Play size={16} strokeWidth={2.5} className="ml-0.5" />
+          </button>
+        )}
+        <div className="flex gap-1.5">
+          <button onClick={onEdit} aria-label="Modifier" className="text-ink-400 hover:text-teal-500"><Pencil size={16} strokeWidth={2} /></button>
+          <button onClick={onDelete} aria-label="Supprimer" className="text-ink-400 hover:text-red-500"><Trash2 size={16} strokeWidth={2} /></button>
+        </div>
       </div>
+    </motion.div>
+  );
+}
+
+// ── Minuteur circulaire de focus sur une tâche (grand cercle) ───────────────────
+function TaskFocusTimer({ task, cat, onClose, onComplete }: {
+  task: Task; cat: any; onClose: () => void; onComplete: () => void;
+}) {
+  const total = Math.max(1, task.duration || 25) * 60;
+  const [remaining, setRemaining] = useState(total);
+  const [running, setRunning]     = useState(true);
+  const [done, setDone]           = useState(false);
+  const tick = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (!running || done) return;
+    tick.current = setInterval(() => {
+      setRemaining(s => {
+        if (s <= 1) { if (tick.current) clearInterval(tick.current); setDone(true); setRunning(false); return 0; }
+        return s - 1;
+      });
+    }, 1000);
+    return () => { if (tick.current) clearInterval(tick.current); };
+  }, [running, done]);
+
+  const color = cat?.borderColor || '#2E9D89';
+  const mm = Math.floor(remaining / 60), ss = remaining % 60;
+  const R = 130, C = 2 * Math.PI * R;
+  const progress = total ? remaining / total : 0;
+  const reset   = () => { setRemaining(total); setDone(false); setRunning(true); };
+  const addFive = () => setRemaining(s => s + 300);
+
+  return (
+    <motion.div className="fixed inset-0 bg-ink-900/95 z-[60] flex items-center justify-center p-4"
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+      <motion.div className="text-center w-full max-w-sm"
+        initial={{ scale: 0.92, y: 14 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.92, opacity: 0 }}>
+        {/* Catégorie + tâche */}
+        <div className="flex items-center justify-center gap-1.5 mb-1 text-white/70 text-sm">
+          {cat?.Icon && <cat.Icon size={16} strokeWidth={2} />} {cat?.label}
+        </div>
+        <h3 className="text-white font-black text-xl mb-6 px-4">{task.title}</h3>
+
+        {/* Grand cercle */}
+        <div className="relative w-72 h-72 mx-auto mb-7">
+          <svg className="w-full h-full -rotate-90" viewBox="0 0 300 300">
+            <circle cx="150" cy="150" r={R} fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="14" />
+            <circle cx="150" cy="150" r={R} fill="none" stroke={color} strokeWidth="14" strokeLinecap="round"
+              strokeDasharray={C} strokeDashoffset={C * (1 - progress)}
+              style={{ transition: 'stroke-dashoffset 1s linear' }} />
+          </svg>
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            {done ? (
+              <>
+                <CheckCircle2 size={48} strokeWidth={2} className="text-teal-400 mb-1" />
+                <span className="text-white font-black text-xl">Terminé !</span>
+              </>
+            ) : (
+              <>
+                <span className="text-white font-black tabular-nums" style={{ fontSize: 56, lineHeight: 1 }}>
+                  {String(mm).padStart(2, '0')}:{String(ss).padStart(2, '0')}
+                </span>
+                <span className="text-white/50 text-sm mt-2">{running ? 'focus en cours' : 'en pause'}</span>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Contrôles */}
+        {!done ? (
+          <div className="flex items-center justify-center gap-3">
+            <button onClick={addFive} className="bg-white/10 hover:bg-white/20 text-white font-bold px-4 py-3 rounded-2xl text-sm">+5 min</button>
+            <button onClick={() => setRunning(r => !r)} aria-label={running ? 'Pause' : 'Reprendre'}
+              className="bg-white text-ink-900 w-16 h-16 rounded-full flex items-center justify-center shadow-card">
+              {running ? <Pause size={26} strokeWidth={2.5} /> : <Play size={26} strokeWidth={2.5} className="ml-1" />}
+            </button>
+            <button onClick={reset} aria-label="Réinitialiser" className="bg-white/10 hover:bg-white/20 text-white px-4 py-3 rounded-2xl"><RotateCcw size={18} strokeWidth={2} /></button>
+          </div>
+        ) : (
+          <button onClick={onComplete} className="bg-teal-500 hover:bg-teal-600 text-white font-black px-6 py-3.5 rounded-2xl inline-flex items-center gap-2">
+            <Check size={20} strokeWidth={2.5} /> Marquer la tâche comme faite
+          </button>
+        )}
+
+        {/* Fermer */}
+        <button onClick={onClose} className="block mx-auto mt-5 text-white/60 hover:text-white text-sm font-semibold">
+          {done ? 'Fermer' : 'Quitter le minuteur'}
+        </button>
+      </motion.div>
     </motion.div>
   );
 }
@@ -440,16 +557,23 @@ function AddTaskModal({ task, onSave, onClose }: { task: Task | null; onSave: (d
           <input value={title} onChange={e => { setTitle(e.target.value); setFamilyTemplate(null); }} autoFocus placeholder="Que dois-tu faire ?"
             className="w-full border-2 border-line focus:border-teal-400 rounded-xl px-4 py-3 text-sm outline-none mb-3" />
 
-          {/* Catégorie */}
+          {/* Catégorie — sélecteur icône-d'abord (compact, lisible) */}
           <p className="text-xs font-bold text-ink-400 uppercase mb-2">Catégorie</p>
-          <div className="grid grid-cols-2 gap-2 mb-2">
-            {Object.entries(CATEGORIES).map(([key, c]) => (
-              <button key={key} onClick={() => changeCategory(key)}
-                className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold border-2 transition-all ${category === key ? 'border-transparent' : 'border-line text-ink-500'}`}
-                style={category === key ? { background: c.color, color: c.textColor } : {}}>
-                {c.emoji} {c.label}
-              </button>
-            ))}
+          <div className="grid grid-cols-4 gap-2 mb-2">
+            {Object.entries(CATEGORIES).map(([key, c]) => {
+              const active = category === key;
+              return (
+                <button key={key} onClick={() => changeCategory(key)}
+                  className={`flex flex-col items-center gap-1 px-1 py-2 rounded-xl border-2 transition-all ${active ? 'border-transparent' : 'border-line hover:bg-surface-soft'}`}
+                  style={active ? { background: c.color } : {}}>
+                  <span className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: active ? '#ffffff' : c.color }}>
+                    <c.Icon size={17} strokeWidth={2} style={{ color: c.borderColor }} />
+                  </span>
+                  <span className="text-[10px] font-semibold leading-tight text-center"
+                    style={{ color: active ? c.textColor : '#5C6B66' }}>{c.label}</span>
+                </button>
+              );
+            })}
           </div>
           <p className="text-xs text-ink-400 italic mb-3 flex items-center gap-1.5"><Lightbulb size={14} strokeWidth={2} /> {cat.tip}</p>
 
@@ -512,11 +636,10 @@ function AddTaskModal({ task, onSave, onClose }: { task: Task | null; onSave: (d
             placeholder="Note (optionnel)..."
             className="w-full border-2 border-line focus:border-teal-400 rounded-xl px-3 py-2 text-sm outline-none resize-none mb-3" />
 
-          {/* XP */}
-          <div className="bg-violet-50 rounded-xl px-4 py-2 mb-4 text-center">
-            <span className="text-violet-700 font-black">+{xp} XP</span>
-            <span className="text-violet-400 text-xs ml-1">à la complétion</span>
-          </div>
+          {/* XP — discret */}
+          <p className="text-xs text-ink-400 text-right mb-4 flex items-center justify-end gap-1">
+            <Sparkles size={12} strokeWidth={2} className="text-violet-400" /> +{xp} XP à la complétion
+          </p>
 
           <div className="flex gap-3">
             <button onClick={onClose} className="flex-1 border-2 border-line text-ink-500 font-bold py-3 rounded-xl hover:bg-surface-soft text-sm">Annuler</button>
@@ -555,7 +678,9 @@ function RewardsPanel({ profile, onClose }: { profile: any; onClose: () => void 
               const earned = profile.earnedBadges.includes(b.id);
               return (
                 <div key={b.id} className={`rounded-xl p-3 border ${earned ? 'bg-amber-400/10 border-amber-400/40' : 'bg-surface-soft border-line opacity-50'}`}>
-                  <p className="text-2xl mb-1">{earned ? b.emoji : <Lock size={20} strokeWidth={2} className="text-ink-400" />}</p>
+                  <div className="mb-1.5">{earned
+                    ? <b.Icon size={22} strokeWidth={2} className="text-amber-500" />
+                    : <Lock size={20} strokeWidth={2} className="text-ink-400" />}</div>
                   <p className="text-xs font-bold text-ink-700">{b.label}</p>
                   <p className="text-xs text-ink-400">{b.description}</p>
                 </div>
