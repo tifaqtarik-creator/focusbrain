@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { ADHD_PLAYLISTS, CATEGORIES, Playlist } from '../data/adhdPlaylists';
 import { useColoredNoise } from '../hooks/useColoredNoise';
+import YouTubeSearch from '../components/music/YouTubeSearch';
 
 // ── Quiz profil TDAH (4 questions) ────────────────────────────────────────────
 const QUIZ = [
@@ -150,7 +151,7 @@ export default function MusicPage() {
         <div className="flex items-center justify-between mb-5">
           <div>
             <h1 className="text-2xl font-black text-ink-900 flex items-center gap-2"><Music size={24} strokeWidth={2} className="text-teal-600" /> Musique Focus TDAH</h1>
-            <p className="text-ink-500 text-sm">Trouve ton ambiance idéale de concentration (Spotify)</p>
+            <p className="text-ink-500 text-sm">Cherche sur YouTube (gratuit, titres complets) ou explore les playlists Spotify</p>
           </div>
           <div className="flex gap-2">
             <button onClick={surpriseMe}
@@ -163,6 +164,9 @@ export default function MusicPage() {
             </button>
           </div>
         </div>
+
+        {/* Recherche YouTube (gratuit, titres complets) */}
+        <YouTubeSearch />
 
         {/* Historique */}
         {history.length > 0 && (
