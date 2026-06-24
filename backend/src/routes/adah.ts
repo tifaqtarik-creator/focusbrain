@@ -554,8 +554,16 @@ Règles : TOUJOURS au moins 1 tâche "health" et 1 "adhd". Inclure les repas (me
       .slice(0, 8);
     res.json({ tasks });
   } catch (err: any) {
-    console.error('generate-day error:', err.message);
-    res.status(500).json({ error: 'Génération impossible', tasks: [] });
+    console.error('generate-day error:', err?.status, err?.message);
+    // Classer l'erreur Anthropic pour un diagnostic clair (sans jamais exposer la clé)
+    const status = err?.status;
+    let code = 'AI_ERROR';
+    if (status === 401) code = 'BAD_KEY';        // clé invalide / mal copiée
+    else if (status === 403) code = 'NO_ACCESS'; // clé sans accès au modèle
+    else if (status === 402) code = 'NO_CREDIT'; // pas de crédit / facturation
+    else if (status === 429) code = 'RATE_LIMIT';
+    else if (status === 404) code = 'BAD_MODEL';
+    res.status(200).json({ tasks: [], error: (err?.message || 'Génération impossible').slice(0, 180), code });
   }
 });
 
