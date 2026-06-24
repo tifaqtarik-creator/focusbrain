@@ -13,7 +13,8 @@ import {
 import { usePlannerContext, Task, PrayerSettings } from '../context/PlannerContext';
 import {
   CATEGORIES, BADGES, getDailyTip, computeTaskXP,
-  levelTitle, SUGGESTIONS, PRAYERS, PRAYER_CITIES, TaskSuggestion,
+  levelTitle, PRAYERS, PRAYER_CITIES, TaskSuggestion,
+  ICON_SET, ICON_KEYS, CATEGORY_COLORS,
 } from '../data/plannerData';
 import { ADHD_PLAYLISTS, CATEGORIES as MUSIC_CATEGORIES } from '../data/adhdPlaylists';
 import { usePrayerTimes, PrayerTimings } from '../hooks/usePrayerTimes';
@@ -34,7 +35,7 @@ export default function DayPlannerPage() {
     activeDate, setActiveDate, tasks, tasksByDate,
     addTask, updateTask, deleteTask, toggleTask, copyDayTo,
     profile, clearLevelUp, activeCategory, setActiveCategory,
-    prayerSettings, setPrayerSettings,
+    prayerSettings, setPrayerSettings, categories,
   } = usePlannerContext();
 
   const [showAdd, setShowAdd]       = useState(false);
@@ -76,12 +77,14 @@ export default function DayPlannerPage() {
   const filtered = activeCategory === 'all' ? tasks : tasks.filter(t => t.category === activeCategory);
   const grouped = useMemo(() => {
     const g: Record<string, Task[]> = {};
-    Object.keys(CATEGORIES).forEach(cat => {
+    // union des clés de catégories connues + celles présentes dans les tâches (orphelines)
+    const keys = Array.from(new Set([...Object.keys(categories), ...filtered.map(t => t.category)]));
+    keys.forEach(cat => {
       const ct = filtered.filter(t => t.category === cat).sort((a, b) => PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]);
       if (ct.length) g[cat] = ct;
     });
     return g;
-  }, [filtered]);
+  }, [filtered, categories]);
 
   const total = tasks.length;
   const done = tasks.filter(t => t.done).length;
@@ -196,7 +199,7 @@ export default function DayPlannerPage() {
             className={`shrink-0 px-3 py-1.5 rounded-xl text-sm font-bold transition-colors ${activeCategory === 'all' ? 'bg-ink-900 text-white' : 'bg-white border border-line text-ink-500'}`}>
             Tout ({total})
           </button>
-          {Object.entries(CATEGORIES).map(([key, cat]) => counts[key] ? (
+          {Object.entries(categories).map(([key, cat]) => counts[key] ? (
             <button key={key} onClick={() => setActiveCategory(key)}
               className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-bold transition-all border-2 ${activeCategory === key ? 'border-transparent' : 'border-line bg-white text-ink-500'}`}
               style={activeCategory === key ? { background: cat.color, color: cat.textColor } : {}}>
@@ -208,7 +211,7 @@ export default function DayPlannerPage() {
 
         {/* Tâches groupées */}
         {Object.entries(grouped).map(([cat, catTasks]) => {
-          const c = CATEGORIES[cat];
+          const c = categories[cat] || CATEGORIES.personal;
           return (
             <div key={cat} className="mb-4">
               <div className="flex items-center gap-2 mb-2">
@@ -291,7 +294,7 @@ export default function DayPlannerPage() {
       )}
 
       {/* Vue impression */}
-      <PrintView date={activeDate} grouped={grouped} total={total} totalMinutes={totalMinutes} />
+      <PrintView date={activeDate} grouped={grouped} total={total} totalMinutes={totalMinutes} cats={categories} />
 
       {/* Modal ajout/édition */}
       <AnimatePresence>
@@ -310,7 +313,7 @@ export default function DayPlannerPage() {
         {focusTask && (
           <TaskFocusTimer
             task={focusTask}
-            cat={CATEGORIES[focusTask.category]}
+            cat={categories[focusTask.category] || CATEGORIES.personal}
             onClose={() => setFocusTask(null)}
             onComplete={() => {
               if (focusTask && !focusTask.done) toggleTask(focusTask.id);
@@ -627,9 +630,23 @@ function AddTaskModal({ task, onSave, onClose }: { task: Task | null; onSave: (d
   const [note, setNote]         = useState(task?.note || '');
   const [personName, setPersonName]         = useState('');
   const [familyTemplate, setFamilyTemplate] = useState<string | null>(null);
+  const {
+    categories: allCats, addCategory, deleteCategory,
+    suggestionsFor, addSuggestion, deleteSuggestion,
+  } = usePlannerContext();
+
+  // Formulaires d'ajout (catégorie / suggestion personnalisées)
+  const [showCatForm, setShowCatForm]   = useState(false);
+  const [newCatLabel, setNewCatLabel]   = useState('');
+  const [newCatIcon, setNewCatIcon]     = useState(ICON_KEYS[0]);
+  const [newCatColor, setNewCatColor]   = useState(0);
+  const [showSuggForm, setShowSuggForm] = useState(false);
+  const [newSuggTitle, setNewSuggTitle] = useState('');
+  const [newSuggIcon, setNewSuggIcon]   = useState(ICON_KEYS[0]);
+
   const xp = computeTaskXP(priority, duration);
-  const cat = CATEGORIES[category];
-  const suggestions = SUGGESTIONS[category] || [];
+  const cat = allCats[category] || CATEGORIES.personal;
+  const suggestions = suggestionsFor(category);
   const isFamily = category === 'family';
 
   // Titre « Famille & amis » = action choisie + nom de la personne
@@ -644,6 +661,16 @@ function AddTaskModal({ task, onSave, onClose }: { task: Task | null; onSave: (d
     else { setTitle(s.title); setFamilyTemplate(null); }
   };
   const changeCategory = (key: string) => { setCategory(key); if (key !== 'family') setFamilyTemplate(null); };
+  const createCategory = () => {
+    if (!newCatLabel.trim()) return;
+    addCategory(newCatLabel, newCatIcon, newCatColor);
+    setNewCatLabel(''); setShowCatForm(false);
+  };
+  const createSuggestion = () => {
+    if (!newSuggTitle.trim()) return;
+    addSuggestion(category, { title: newSuggTitle, iconKey: newSuggIcon });
+    setNewSuggTitle(''); setShowSuggForm(false);
+  };
 
   const finalTitle = isFamily && familyTemplate ? familyTemplate.replace('{nom}', personName.trim()) : title.trim();
   const canSave = isFamily && familyTemplate ? personName.trim().length > 0 : title.trim().length > 0;
@@ -662,45 +689,127 @@ function AddTaskModal({ task, onSave, onClose }: { task: Task | null; onSave: (d
           <input value={title} onChange={e => { setTitle(e.target.value); setFamilyTemplate(null); }} autoFocus placeholder="Que dois-tu faire ?"
             className="w-full border-2 border-line focus:border-teal-400 rounded-xl px-4 py-3 text-sm outline-none mb-3" />
 
-          {/* Catégorie — sélecteur icône-d'abord (compact, lisible) */}
+          {/* Catégorie — sélecteur icône-d'abord + ajout perso */}
           <p className="text-xs font-bold text-ink-400 uppercase mb-2">Catégorie</p>
           <div className="grid grid-cols-4 gap-2 mb-2">
-            {Object.entries(CATEGORIES).map(([key, c]) => {
+            {Object.entries(allCats).map(([key, c]) => {
               const active = category === key;
               return (
-                <button key={key} onClick={() => changeCategory(key)}
-                  className={`flex flex-col items-center gap-1 px-1 py-2 rounded-xl border-2 transition-all ${active ? 'border-transparent' : 'border-line hover:bg-surface-soft'}`}
-                  style={active ? { background: c.color } : {}}>
-                  <span className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: active ? '#ffffff' : c.color }}>
-                    <c.Icon size={17} strokeWidth={2} style={{ color: c.borderColor }} />
-                  </span>
-                  <span className="text-[10px] font-semibold leading-tight text-center"
-                    style={{ color: active ? c.textColor : '#5C6B66' }}>{c.label}</span>
-                </button>
+                <div key={key} className="relative">
+                  <button onClick={() => changeCategory(key)}
+                    className={`w-full flex flex-col items-center gap-1 px-1 py-2 rounded-xl border-2 transition-all ${active ? 'border-transparent' : 'border-line hover:bg-surface-soft'}`}
+                    style={active ? { background: c.color } : {}}>
+                    <span className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: active ? '#ffffff' : c.color }}>
+                      <c.Icon size={17} strokeWidth={2} style={{ color: c.borderColor }} />
+                    </span>
+                    <span className="text-[10px] font-semibold leading-tight text-center"
+                      style={{ color: active ? c.textColor : '#5C6B66' }}>{c.label}</span>
+                  </button>
+                  {c.custom && (
+                    <button onClick={() => { if (category === key) setCategory('personal'); deleteCategory(key); }}
+                      aria-label="Supprimer la catégorie" title="Supprimer"
+                      className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-white border border-line text-ink-400 hover:text-red-500 flex items-center justify-center shadow-sm">
+                      <X size={11} strokeWidth={2.5} />
+                    </button>
+                  )}
+                </div>
               );
             })}
+            {/* Nouvelle catégorie */}
+            <button onClick={() => setShowCatForm(v => !v)}
+              className="flex flex-col items-center justify-center gap-1 px-1 py-2 rounded-xl border-2 border-dashed border-line text-ink-400 hover:bg-surface-soft hover:text-teal-600">
+              <span className="w-8 h-8 rounded-lg flex items-center justify-center bg-surface-muted"><Plus size={17} strokeWidth={2.5} /></span>
+              <span className="text-[10px] font-semibold">Nouvelle</span>
+            </button>
           </div>
-          <p className="text-xs text-ink-400 italic mb-3 flex items-center gap-1.5"><Lightbulb size={14} strokeWidth={2} /> {cat.tip}</p>
 
-          {/* Suggestions rapides (1 clic = pré-remplie) */}
-          {suggestions.length > 0 && (
-            <div className="mb-3">
-              <p className="text-xs font-bold text-ink-400 uppercase mb-2">{isFamily ? 'Choisis une action' : 'Suggestions rapides'}</p>
-              <div className="flex flex-wrap gap-1.5">
-                {suggestions.map((s, i) => {
-                  const active = isFamily ? familyTemplate === (s.template || `${s.title} {nom}`) : title === s.title;
+          {/* Formulaire — nouvelle catégorie (nom + icône + couleur) */}
+          {showCatForm && (
+            <div className="bg-surface-soft border border-line rounded-xl p-3 mb-2">
+              <input value={newCatLabel} onChange={e => setNewCatLabel(e.target.value)} autoFocus maxLength={30}
+                placeholder="Nom de la catégorie"
+                className="w-full border-2 border-line focus:border-teal-400 rounded-lg px-3 py-2 text-sm outline-none mb-2" />
+              <p className="text-[11px] font-bold text-ink-400 uppercase mb-1">Icône</p>
+              <div className="grid grid-cols-8 gap-1.5 mb-2 max-h-24 overflow-y-auto no-scrollbar">
+                {ICON_KEYS.map(k => { const Ic = ICON_SET[k]; const on = newCatIcon === k;
                   return (
-                    <button key={i} onClick={() => applySuggestion(s)}
-                      className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all ${active ? 'border-transparent text-white' : 'border-line text-ink-500 hover:bg-surface-soft'}`}
-                      style={active ? { background: cat.borderColor } : {}}>
-                      <s.Icon size={13} strokeWidth={2} style={active ? {} : { color: cat.borderColor }} />
-                      {s.title}
+                    <button key={k} onClick={() => setNewCatIcon(k)} aria-label={k}
+                      className={`aspect-square rounded-lg flex items-center justify-center ${on ? 'bg-teal-500 text-white' : 'bg-white border border-line text-ink-500 hover:bg-surface-muted'}`}>
+                      <Ic size={15} strokeWidth={2} />
                     </button>
                   );
                 })}
               </div>
+              <p className="text-[11px] font-bold text-ink-400 uppercase mb-1">Couleur</p>
+              <div className="flex gap-1.5 mb-3">
+                {CATEGORY_COLORS.map((col, i) => (
+                  <button key={i} onClick={() => setNewCatColor(i)} aria-label={`Couleur ${i + 1}`}
+                    className="w-7 h-7 rounded-lg"
+                    style={{ background: col.color, border: '1px solid ' + col.borderColor, boxShadow: newCatColor === i ? `0 0 0 2px ${col.borderColor}` : undefined }} />
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => setShowCatForm(false)} className="flex-1 border-2 border-line text-ink-500 font-bold py-2 rounded-lg text-xs hover:bg-white">Annuler</button>
+                <button onClick={createCategory} disabled={!newCatLabel.trim()} className="flex-1 bg-teal-500 disabled:opacity-40 text-white font-black py-2 rounded-lg text-xs">Créer</button>
+              </div>
             </div>
           )}
+
+          {cat.tip && <p className="text-xs text-ink-400 italic mb-3 flex items-center gap-1.5"><Lightbulb size={14} strokeWidth={2} /> {cat.tip}</p>}
+
+          {/* Suggestions rapides (intégrées + perso) */}
+          <div className="mb-3">
+            <p className="text-xs font-bold text-ink-400 uppercase mb-2">{isFamily ? 'Choisis une action' : 'Suggestions rapides'}</p>
+            <div className="flex flex-wrap gap-1.5">
+              {suggestions.map((s, i) => {
+                const active = isFamily ? familyTemplate === (s.template || `${s.title} {nom}`) : title === s.title;
+                return (
+                  <span key={i}
+                    className={`inline-flex items-center gap-1.5 pl-2.5 ${s.custom ? 'pr-1' : 'pr-2.5'} py-1.5 rounded-lg text-xs font-semibold border transition-all ${active ? 'border-transparent text-white' : 'border-line text-ink-500'}`}
+                    style={active ? { background: cat.borderColor } : {}}>
+                    <button onClick={() => applySuggestion(s)} className="inline-flex items-center gap-1.5">
+                      <s.Icon size={13} strokeWidth={2} style={active ? {} : { color: cat.borderColor }} />
+                      {s.title}
+                    </button>
+                    {s.custom && (
+                      <button onClick={() => deleteSuggestion(category, s.idx!)} aria-label="Supprimer la suggestion"
+                        className={`ml-0.5 ${active ? 'text-white/70 hover:text-white' : 'text-ink-300 hover:text-red-500'}`}>
+                        <X size={12} strokeWidth={2.5} />
+                      </button>
+                    )}
+                  </span>
+                );
+              })}
+              {/* Ajouter une suggestion */}
+              <button onClick={() => setShowSuggForm(v => !v)}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold border border-dashed border-line text-ink-400 hover:text-teal-600 hover:bg-surface-soft">
+                <Plus size={13} strokeWidth={2.5} /> Ajouter
+              </button>
+            </div>
+
+            {/* Formulaire — nouvelle suggestion (titre + icône) */}
+            {showSuggForm && (
+              <div className="bg-surface-soft border border-line rounded-xl p-3 mt-2">
+                <input value={newSuggTitle} onChange={e => setNewSuggTitle(e.target.value)} autoFocus maxLength={60}
+                  placeholder="Titre de la suggestion"
+                  className="w-full border-2 border-line focus:border-teal-400 rounded-lg px-3 py-2 text-sm outline-none mb-2" />
+                <div className="grid grid-cols-8 gap-1.5 mb-2 max-h-24 overflow-y-auto no-scrollbar">
+                  {ICON_KEYS.map(k => { const Ic = ICON_SET[k]; const on = newSuggIcon === k;
+                    return (
+                      <button key={k} onClick={() => setNewSuggIcon(k)} aria-label={k}
+                        className={`aspect-square rounded-lg flex items-center justify-center ${on ? 'bg-teal-500 text-white' : 'bg-white border border-line text-ink-500 hover:bg-surface-muted'}`}>
+                        <Ic size={15} strokeWidth={2} />
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => setShowSuggForm(false)} className="flex-1 border-2 border-line text-ink-500 font-bold py-2 rounded-lg text-xs hover:bg-white">Annuler</button>
+                  <button onClick={createSuggestion} disabled={!newSuggTitle.trim()} className="flex-1 bg-teal-500 disabled:opacity-40 text-white font-black py-2 rounded-lg text-xs">Ajouter</button>
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Nom de la personne (Famille & amis) */}
           {isFamily && familyTemplate && (
@@ -821,7 +930,7 @@ function LevelUpModal({ level, badge, onClose }: { level: number; badge: string 
 }
 
 // ── Vue impression ─────────────────────────────────────────────────────────────
-function PrintView({ date, grouped, total, totalMinutes }: { date: string; grouped: Record<string, Task[]>; total: number; totalMinutes: number }) {
+function PrintView({ date, grouped, total, totalMinutes, cats }: { date: string; grouped: Record<string, Task[]>; total: number; totalMinutes: number; cats: Record<string, any> }) {
   return (
     <div className="print-only" style={{ padding: 24, fontFamily: 'Georgia, serif', color: '#000' }}>
       <h1 style={{ fontSize: 22, fontWeight: 'bold' }}>Ma journée TDAH — {fmtFullDate(date)}</h1>
@@ -829,7 +938,7 @@ function PrintView({ date, grouped, total, totalMinutes }: { date: string; group
       {Object.entries(grouped).map(([cat, tasks]) => (
         <div key={cat} style={{ marginBottom: 14 }}>
           <p style={{ fontSize: 13, fontWeight: 'bold', borderBottom: '1px solid #000', paddingBottom: 3, marginBottom: 6 }}>
-            {CATEGORIES[cat].emoji} {CATEGORIES[cat].label}
+            {(cats[cat]?.label) || cat}
           </p>
           {tasks.map(t => (
             <div key={t.id} style={{ display: 'flex', gap: 8, marginBottom: 5, fontSize: 12 }}>

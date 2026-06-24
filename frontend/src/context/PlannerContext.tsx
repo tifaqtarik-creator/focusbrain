@@ -1,8 +1,11 @@
 /**
  * PlannerContext.tsx — État du planificateur TDAH (localStorage + gamification)
  */
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { CATEGORIES, BADGES, computeLevel, computeTaskXP } from '../data/plannerData';
+import { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from 'react';
+import {
+  CATEGORIES, SUGGESTIONS, BADGES, computeLevel, computeTaskXP,
+  ICON_SET, CATEGORY_COLORS, Category, TaskSuggestion,
+} from '../data/plannerData';
 
 export interface Task {
   id: string; title: string; category: string; priority: 'high' | 'med' | 'low';
@@ -21,7 +24,15 @@ export interface PrayerSettings {
 const storageKey = (date: string) => `adah_day_${date}`;
 const PROFILE_KEY = 'adah_gamification_profile';
 const PRAYER_SETTINGS_KEY = 'adah_prayer_settings';
+const CUSTOM_CATS_KEY = 'adah_custom_categories';
+const CUSTOM_SUGG_KEY = 'adah_custom_suggestions';
 const today = () => new Date().toISOString().split('T')[0];
+
+// ── Personnalisation utilisateur ──────────────────────────────────────────────
+export interface CustomCategory { id: string; label: string; iconKey: string; color: string; textColor: string; borderColor: string; }
+export interface CustomSuggestion { title: string; iconKey: string; duration?: number; priority?: 'high' | 'med' | 'low'; }
+export type MergedSuggestion = TaskSuggestion & { custom?: boolean; idx?: number };
+const FALLBACK_ICON = ICON_SET.etoiles;
 
 function defaultProfile(): Profile {
   return { totalXP: 0, todayXP: 0, level: 1, streak: 0, lastActiveDay: null, earnedBadges: [], justLeveledUp: false, newBadge: null };
@@ -41,6 +52,14 @@ interface PlannerCtx {
   profile: Profile; clearLevelUp: () => void;
   activeCategory: string; setActiveCategory: (c: string) => void;
   prayerSettings: PrayerSettings; setPrayerSettings: (s: Partial<PrayerSettings>) => void;
+  // Catégories & suggestions personnalisées
+  categories: Record<string, Category>;        // intégrées + perso (source unique)
+  customCategories: CustomCategory[];
+  addCategory: (label: string, iconKey: string, colorIdx: number) => void;
+  deleteCategory: (id: string) => void;
+  suggestionsFor: (catKey: string) => MergedSuggestion[];
+  addSuggestion: (catKey: string, s: CustomSuggestion) => void;
+  deleteSuggestion: (catKey: string, idx: number) => void;
 }
 
 const Ctx = createContext<PlannerCtx | null>(null);
@@ -74,6 +93,53 @@ export function PlannerProvider({ children }: { children: ReactNode }) {
       localStorage.setItem(PRAYER_SETTINGS_KEY, JSON.stringify(next));
       return next;
     });
+  }, []);
+
+  // ── Catégories & suggestions personnalisées (localStorage) ──
+  const [customCategories, setCustomCategories] = useState<CustomCategory[]>(() => {
+    try { return JSON.parse(localStorage.getItem(CUSTOM_CATS_KEY) || '[]'); } catch { return []; }
+  });
+  const [customSuggestions, setCustomSuggestions] = useState<Record<string, CustomSuggestion[]>>(() => {
+    try { return JSON.parse(localStorage.getItem(CUSTOM_SUGG_KEY) || '{}'); } catch { return {}; }
+  });
+  useEffect(() => { localStorage.setItem(CUSTOM_CATS_KEY, JSON.stringify(customCategories)); }, [customCategories]);
+  useEffect(() => { localStorage.setItem(CUSTOM_SUGG_KEY, JSON.stringify(customSuggestions)); }, [customSuggestions]);
+
+  // Source unique : catégories intégrées + perso (avec icône résolue)
+  const categories = useMemo<Record<string, Category>>(() => {
+    const merged: Record<string, Category> = { ...CATEGORIES };
+    customCategories.forEach(c => {
+      merged[c.id] = {
+        id: c.id, label: c.label, emoji: '', Icon: ICON_SET[c.iconKey] || FALLBACK_ICON,
+        color: c.color, textColor: c.textColor, borderColor: c.borderColor,
+        xpMultiplier: 1, tip: '', custom: true,
+      };
+    });
+    return merged;
+  }, [customCategories]);
+
+  const addCategory = useCallback((label: string, iconKey: string, colorIdx: number) => {
+    const col = CATEGORY_COLORS[colorIdx % CATEGORY_COLORS.length];
+    const id = `cat_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`;
+    setCustomCategories(prev => [...prev, { id, label: label.trim().slice(0, 30), iconKey, ...col }]);
+  }, []);
+  const deleteCategory = useCallback((id: string) => {
+    setCustomCategories(prev => prev.filter(c => c.id !== id));
+  }, []);
+
+  const suggestionsFor = useCallback((catKey: string): MergedSuggestion[] => {
+    const builtin = (SUGGESTIONS[catKey] || []).map(s => ({ ...s })) as MergedSuggestion[];
+    const custom = (customSuggestions[catKey] || []).map((s, idx) => ({
+      title: s.title, Icon: ICON_SET[s.iconKey] || FALLBACK_ICON,
+      duration: s.duration, priority: s.priority, custom: true, idx,
+    })) as MergedSuggestion[];
+    return [...builtin, ...custom];
+  }, [customSuggestions]);
+  const addSuggestion = useCallback((catKey: string, s: CustomSuggestion) => {
+    setCustomSuggestions(prev => ({ ...prev, [catKey]: [...(prev[catKey] || []), { ...s, title: s.title.trim().slice(0, 60) }] }));
+  }, []);
+  const deleteSuggestion = useCallback((catKey: string, idx: number) => {
+    setCustomSuggestions(prev => ({ ...prev, [catKey]: (prev[catKey] || []).filter((_, i) => i !== idx) }));
   }, []);
 
   // Persistance
@@ -169,6 +235,8 @@ export function PlannerProvider({ children }: { children: ReactNode }) {
       addTask, updateTask, deleteTask, toggleTask, copyDayTo,
       profile, clearLevelUp, activeCategory, setActiveCategory,
       prayerSettings, setPrayerSettings,
+      categories, customCategories, addCategory, deleteCategory,
+      suggestionsFor, addSuggestion, deleteSuggestion,
     }}>
       {children}
     </Ctx.Provider>

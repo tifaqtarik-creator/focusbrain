@@ -10,13 +10,41 @@ import {
   Dumbbell, BedDouble, Stethoscope, Scale, Glasses, Egg, Salad, ShoppingCart,
   WashingMachine, Mail, Timer, Phone, NotebookPen, Target, Pause, BellOff, Coffee,
   House, Gift, MessageCircle, Receipt, CalendarPlus, FolderOpen, ShoppingBag, Wallet, Gamepad2,
+  // Jeu d'icônes personnalisables (catégories/suggestions perso)
+  Music, Sun, Moon, Plane, Car, Smile, Camera, Code, Leaf, PenTool,
   type LucideIcon,
 } from 'lucide-react';
+
+// ── Jeu d'icônes pour les éléments PERSONNALISÉS (clé string ↔ composant) ─────
+// On stocke la clé (string) en localStorage, et on rend le composant via ICON_SET.
+export const ICON_SET: Record<string, LucideIcon> = {
+  briefcase: Briefcase, book: BookOpen, sante: HeartPulse, sport: Dumbbell, maison: House,
+  courses: ShoppingCart, phone: Phone, cafe: Coffee, cerveau: Brain, etoiles: Sparkles,
+  palette: Palette, medic: Pill, lit: BedDouble, cible: Target, etoile: Star,
+  jeu: Gamepad2, argent: Wallet, repas: Utensils, eau: GlassWater, cadeau: Gift,
+  gens: UsersRound, flamme: Flame, douche: ShowerHead, balance: Scale, lunettes: Glasses,
+  dossier: FolderOpen, facture: Receipt, mail: Mail, marche: PersonStanding, energie: Activity,
+  musique: Music, soleil: Sun, lune: Moon, avion: Plane, voiture: Car,
+  sourire: Smile, photo: Camera, code: Code, feuille: Leaf, stylo: PenTool,
+};
+export const ICON_KEYS = Object.keys(ICON_SET);
+
+// ── Palette de couleurs pour les catégories personnalisées ────────────────────
+export const CATEGORY_COLORS: { color: string; textColor: string; borderColor: string }[] = [
+  { color: '#E7F4EE', textColor: '#14573A', borderColor: '#2E9E68' },
+  { color: '#E1F4F8', textColor: '#0A5360', borderColor: '#1BA0B5' },
+  { color: '#E6F1FB', textColor: '#0C447C', borderColor: '#185FA5' },
+  { color: '#EEEDFE', textColor: '#3C3489', borderColor: '#534AB7' },
+  { color: '#FCE8E4', textColor: '#8A2F1D', borderColor: '#CD4A30' },
+  { color: '#FBEAF0', textColor: '#72243E', borderColor: '#993556' },
+  { color: '#FAEEDA', textColor: '#633806', borderColor: '#BA7517' },
+  { color: '#FAECE7', textColor: '#712B13', borderColor: '#993C1D' },
+];
 
 export interface Category {
   id: string; label: string; emoji: string; Icon: LucideIcon;
   color: string; textColor: string; borderColor: string;
-  xpMultiplier: number; tip: string;
+  xpMultiplier: number; tip: string; custom?: boolean;
 }
 
 export const CATEGORIES: Record<string, Category> = {
