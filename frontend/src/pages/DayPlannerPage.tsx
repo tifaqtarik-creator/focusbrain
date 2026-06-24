@@ -131,6 +131,8 @@ export default function DayPlannerPage() {
           .print-only { display: block !important; }
         }
         .print-only { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
       `}</style>
 
       <div className="no-print max-w-3xl mx-auto px-5 py-6 pb-32">
@@ -525,7 +527,7 @@ function TaskFocusTimer({ task, cat, onClose, onComplete }: {
   return (
     <motion.div className="fixed inset-0 bg-ink-900/95 z-[60] flex items-center justify-center p-4"
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-      <motion.div className="text-center w-full max-w-sm max-h-[94vh] overflow-y-auto px-1 py-2"
+      <motion.div className="text-center w-full max-w-sm max-h-[94vh] overflow-y-auto no-scrollbar px-1 py-2"
         initial={{ scale: 0.92, y: 14 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.92, opacity: 0 }}>
         {/* Catégorie + tâche */}
         <div className="flex items-center justify-center gap-1.5 mb-1 text-white/70 text-sm">
@@ -597,10 +599,10 @@ function TaskFocusTimer({ task, cat, onClose, onComplete }: {
               </select>
               <iframe title="Lecteur de musique"
                 src={`https://open.spotify.com/embed/playlist/${playlistId}?utm_source=generator&theme=0`}
-                width="100%" height={352} loading="lazy" style={{ border: 0, borderRadius: 12 }}
+                width="100%" height={152} loading="lazy" style={{ border: 0, borderRadius: 12 }}
                 allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" />
               <p className="text-white/40 text-[11px] mt-2 text-center">
-                Choisis un titre dans le lecteur — la musique continue pendant le minuteur.
+                ▶ dans le lecteur pour choisir un titre — la musique continue pendant le minuteur.
               </p>
             </div>
           )}
