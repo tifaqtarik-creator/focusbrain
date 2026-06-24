@@ -18,6 +18,7 @@ import {
   ICON_SET, ICON_KEYS, CATEGORY_COLORS,
 } from '../data/plannerData';
 import { ADHD_PLAYLISTS, CATEGORIES as MUSIC_CATEGORIES } from '../data/adhdPlaylists';
+import YouTubeSearch from '../components/music/YouTubeSearch';
 import { usePrayerTimes, PrayerTimings } from '../hooks/usePrayerTimes';
 import api from '../lib/api';
 
@@ -533,6 +534,9 @@ function TaskFocusTimer({ task, cat, onClose, onComplete }: {
 
   // Musique de focus (playlist Spotify, indépendante du minuteur)
   const [showMusic, setShowMusic]   = useState(false);
+  const [musicSrc, setMusicSrc]     = useState<'youtube' | 'spotify'>(() =>
+    (localStorage.getItem('focus_music_src') as 'youtube' | 'spotify') || 'youtube');
+  useEffect(() => { localStorage.setItem('focus_music_src', musicSrc); }, [musicSrc]);
   const [playlistId, setPlaylistId] = useState<string>(() =>
     localStorage.getItem('focus_playlist') || ADHD_PLAYLISTS.find(p => p.category === 'lofi')?.id || ADHD_PLAYLISTS[0].id
   );
@@ -619,24 +623,40 @@ function TaskFocusTimer({ task, cat, onClose, onComplete }: {
 
           {showMusic && (
             <div className="mt-3 text-left">
-              <select value={playlistId} onChange={e => setPlaylistId(e.target.value)}
-                aria-label="Choisir une playlist"
-                className="w-full bg-white/10 text-white text-sm rounded-xl px-3 py-2.5 outline-none border border-white/15 mb-3">
-                {musicGroups.map(g => (
-                  <optgroup key={g} label={(MUSIC_CATEGORIES as any)[g]?.label || g}>
-                    {ADHD_PLAYLISTS.filter(p => p.category === g).map(p => (
-                      <option key={p.id} value={p.id} style={{ color: '#16231F' }}>{p.name}</option>
-                    ))}
-                  </optgroup>
+              {/* Source : YouTube (recherche gratuite) ou Spotify */}
+              <div className="flex gap-1.5 mb-3 bg-white/10 rounded-xl p-1">
+                {(['youtube', 'spotify'] as const).map(s => (
+                  <button key={s} onClick={() => setMusicSrc(s)}
+                    className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-colors ${musicSrc === s ? 'bg-white text-ink-900' : 'text-white/70 hover:text-white'}`}>
+                    {s === 'youtube' ? 'YouTube' : 'Spotify'}
+                  </button>
                 ))}
-              </select>
-              <iframe title="Lecteur de musique"
-                src={`https://open.spotify.com/embed/playlist/${playlistId}?utm_source=generator&theme=0`}
-                width="100%" height={152} loading="lazy" style={{ border: 0, borderRadius: 12 }}
-                allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" />
-              <p className="text-white/40 text-[11px] mt-2 text-center">
-                ▶ dans le lecteur pour choisir un titre — la musique continue pendant le minuteur.
-              </p>
+              </div>
+
+              {musicSrc === 'youtube' ? (
+                <YouTubeSearch compact />
+              ) : (
+                <>
+                  <select value={playlistId} onChange={e => setPlaylistId(e.target.value)}
+                    aria-label="Choisir une playlist"
+                    className="w-full bg-white/10 text-white text-sm rounded-xl px-3 py-2.5 outline-none border border-white/15 mb-3">
+                    {musicGroups.map(g => (
+                      <optgroup key={g} label={(MUSIC_CATEGORIES as any)[g]?.label || g}>
+                        {ADHD_PLAYLISTS.filter(p => p.category === g).map(p => (
+                          <option key={p.id} value={p.id} style={{ color: '#16231F' }}>{p.name}</option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
+                  <iframe title="Lecteur de musique"
+                    src={`https://open.spotify.com/embed/playlist/${playlistId}?utm_source=generator&theme=0`}
+                    width="100%" height={152} loading="lazy" style={{ border: 0, borderRadius: 12 }}
+                    allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" />
+                  <p className="text-white/40 text-[11px] mt-2 text-center">
+                    ▶ dans le lecteur pour choisir un titre — la musique continue pendant le minuteur.
+                  </p>
+                </>
+              )}
             </div>
           )}
         </div>

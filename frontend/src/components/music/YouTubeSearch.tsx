@@ -74,7 +74,7 @@ async function searchYouTube(q: string): Promise<YtResult[] | null> {
 
 const fmtDur = (s?: number) => (!s ? '' : `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`);
 
-export default function YouTubeSearch() {
+export default function YouTubeSearch({ compact = false }: { compact?: boolean }) {
   const [query, setQuery]     = useState('');
   const [results, setResults] = useState<YtResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -154,7 +154,7 @@ export default function YouTubeSearch() {
       {/* Lecteur (titre complet, contrôles natifs) */}
       {src && (
         <div className="mb-3">
-          <iframe title="Lecteur YouTube" src={src} width="100%" height={220}
+          <iframe title="Lecteur YouTube" src={src} width="100%" height={compact ? 160 : 220}
             loading="lazy" style={{ border: 0, borderRadius: 12 }}
             allow="autoplay; encrypted-media; picture-in-picture; fullscreen" />
         </div>
@@ -168,7 +168,7 @@ export default function YouTubeSearch() {
 
       {/* Résultats */}
       {results.length > 0 && (
-        <div className="space-y-1.5 max-h-72 overflow-y-auto">
+        <div className={`space-y-1.5 overflow-y-auto ${compact ? 'max-h-48' : 'max-h-72'}`}>
           {results.map(r => (
             <button key={r.id} onClick={() => playVideo(r.id)}
               className={`w-full flex items-center gap-3 p-1.5 rounded-xl text-left hover:bg-surface-soft transition-colors ${video === r.id ? 'bg-teal-50' : ''}`}>
