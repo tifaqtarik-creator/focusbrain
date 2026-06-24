@@ -8,12 +8,14 @@ import {
   ClipboardList, CheckCircle2, Plus, Trash2, Pencil, Printer, Trophy, Lightbulb,
   Sparkles, BrainCircuit, Hourglass, Flame, Clock, Timer, User,
   Landmark, Settings, X, Rocket, Medal, Lock, MapPin, Check, Play, Pause, RotateCcw,
+  Music, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import { usePlannerContext, Task, PrayerSettings } from '../context/PlannerContext';
 import {
   CATEGORIES, BADGES, getDailyTip, computeTaskXP,
   levelTitle, SUGGESTIONS, PRAYERS, PRAYER_CITIES, TaskSuggestion,
 } from '../data/plannerData';
+import { ADHD_PLAYLISTS, CATEGORIES as MUSIC_CATEGORIES } from '../data/adhdPlaylists';
 import { usePrayerTimes, PrayerTimings } from '../hooks/usePrayerTimes';
 import api from '../lib/api';
 
@@ -494,6 +496,14 @@ function TaskFocusTimer({ task, cat, onClose, onComplete }: {
   const [done, setDone]           = useState(false);
   const tick = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Musique de focus (playlist Spotify, indépendante du minuteur)
+  const [showMusic, setShowMusic]   = useState(false);
+  const [playlistId, setPlaylistId] = useState<string>(() =>
+    localStorage.getItem('focus_playlist') || ADHD_PLAYLISTS.find(p => p.category === 'lofi')?.id || ADHD_PLAYLISTS[0].id
+  );
+  useEffect(() => { localStorage.setItem('focus_playlist', playlistId); }, [playlistId]);
+  const musicGroups = Array.from(new Set(ADHD_PLAYLISTS.map(p => p.category)));
+
   useEffect(() => {
     if (!running || done) return;
     tick.current = setInterval(() => {
@@ -515,7 +525,7 @@ function TaskFocusTimer({ task, cat, onClose, onComplete }: {
   return (
     <motion.div className="fixed inset-0 bg-ink-900/95 z-[60] flex items-center justify-center p-4"
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-      <motion.div className="text-center w-full max-w-sm"
+      <motion.div className="text-center w-full max-w-sm max-h-[94vh] overflow-y-auto px-1 py-2"
         initial={{ scale: 0.92, y: 14 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.92, opacity: 0 }}>
         {/* Catégorie + tâche */}
         <div className="flex items-center justify-center gap-1.5 mb-1 text-white/70 text-sm">
@@ -563,6 +573,38 @@ function TaskFocusTimer({ task, cat, onClose, onComplete }: {
             <Check size={20} strokeWidth={2.5} /> Marquer la tâche comme faite
           </button>
         )}
+
+        {/* ── Musique de focus (playlist Spotify) ── */}
+        <div className="mt-5">
+          <button onClick={() => setShowMusic(v => !v)}
+            className="inline-flex items-center gap-2 text-white/70 hover:text-white text-sm font-semibold">
+            <Music size={16} strokeWidth={2} /> Musique
+            {showMusic ? <ChevronUp size={15} strokeWidth={2.5} /> : <ChevronDown size={15} strokeWidth={2.5} />}
+          </button>
+
+          {showMusic && (
+            <div className="mt-3 text-left">
+              <select value={playlistId} onChange={e => setPlaylistId(e.target.value)}
+                aria-label="Choisir une playlist"
+                className="w-full bg-white/10 text-white text-sm rounded-xl px-3 py-2.5 outline-none border border-white/15 mb-3">
+                {musicGroups.map(g => (
+                  <optgroup key={g} label={(MUSIC_CATEGORIES as any)[g]?.label || g}>
+                    {ADHD_PLAYLISTS.filter(p => p.category === g).map(p => (
+                      <option key={p.id} value={p.id} style={{ color: '#16231F' }}>{p.name}</option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+              <iframe title="Lecteur de musique"
+                src={`https://open.spotify.com/embed/playlist/${playlistId}?utm_source=generator&theme=0`}
+                width="100%" height={352} loading="lazy" style={{ border: 0, borderRadius: 12 }}
+                allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" />
+              <p className="text-white/40 text-[11px] mt-2 text-center">
+                Choisis un titre dans le lecteur — la musique continue pendant le minuteur.
+              </p>
+            </div>
+          )}
+        </div>
 
         {/* Fermer */}
         <button onClick={onClose} className="block mx-auto mt-5 text-white/60 hover:text-white text-sm font-semibold">
