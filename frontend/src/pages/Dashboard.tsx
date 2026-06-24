@@ -117,6 +117,22 @@ export default function Dashboard() {
     setCreateModal({ start: d });
     setDuration(25);
   };
+
+  // Pré-remplissage depuis le Planning (bouton « Planifier une session »)
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem('fb_slot_prefill');
+      if (!raw) return;
+      sessionStorage.removeItem('fb_slot_prefill');
+      const p = JSON.parse(raw);
+      const start = new Date(`${p.date}T${p.time || '09:00'}`);
+      setSlotType('SCHEDULED');
+      setDuration([15, 25, 50, 75].includes(p.duration) ? p.duration : 25);
+      setSlotCategory(p.category || 'travail');
+      if (p.title) setTaskList([String(p.title).slice(0, 200)]);
+      setCreateModal({ start: isNaN(start.getTime()) ? new Date() : start });
+    } catch { /* ignore */ }
+  }, []);
   // Feedback de fin de session
   const [feedbackSlot, setFeedbackSlot] = useState<any | null>(null);
   // États pour l'édition

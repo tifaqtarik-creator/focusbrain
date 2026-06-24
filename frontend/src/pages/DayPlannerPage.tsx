@@ -8,8 +8,9 @@ import {
   ClipboardList, CheckCircle2, Plus, Trash2, Pencil, Printer, Trophy, Lightbulb,
   Sparkles, BrainCircuit, Hourglass, Flame, Clock, Timer, User,
   Landmark, Settings, X, Rocket, Medal, Lock, MapPin, Check, Play, Pause, RotateCcw,
-  Music, ChevronDown, ChevronUp,
+  Music, ChevronDown, ChevronUp, CalendarPlus,
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { usePlannerContext, Task, PrayerSettings } from '../context/PlannerContext';
 import {
   CATEGORIES, BADGES, getDailyTip, computeTaskXP,
@@ -25,6 +26,17 @@ const PRIORITY_ORDER = { high: 0, med: 1, low: 2 } as const;
 const PRIORITY_LABEL = { high: 'Haute', med: 'Moyenne', low: 'Faible' };
 const fmtFullDate = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
 
+// ── Pont « Planifier une session » (Planning → calendrier du Tableau de bord) ──
+const SLOT_DURATIONS = [15, 25, 50, 75];
+const snapDuration = (d: number) =>
+  SLOT_DURATIONS.reduce((a, b) => (Math.abs(b - d) < Math.abs(a - d) ? b : a), SLOT_DURATIONS[0]);
+// Catégories Planning → catégories de créneau (travail/etudes/creatif/admin/perso/sante)
+const PLAN_TO_SLOT_CAT: Record<string, string> = {
+  work: 'travail', health: 'sante', hygiene: 'sante', meals: 'sante',
+  admin: 'admin', hobby: 'creatif',
+};
+const mapSlotCategory = (c: string) => PLAN_TO_SLOT_CAT[c] || 'perso';
+
 // Suivi des jours où les prières ont déjà été ajoutées (pour ne pas les ré-ajouter)
 const PRAYER_ADDED_KEY = 'adah_prayers_added';
 const getPrayerAdded = (): Set<string> => { try { return new Set(JSON.parse(localStorage.getItem(PRAYER_ADDED_KEY) || '[]')); } catch { return new Set(); } };
@@ -37,6 +49,19 @@ export default function DayPlannerPage() {
     profile, clearLevelUp, activeCategory, setActiveCategory,
     prayerSettings, setPrayerSettings, categories,
   } = usePlannerContext();
+  const navigate = useNavigate();
+
+  // « Planifier une session » : pré-remplit le modal de session du Tableau de bord
+  const planifyTask = (t: Task) => {
+    sessionStorage.setItem('fb_slot_prefill', JSON.stringify({
+      title: t.title,
+      duration: snapDuration(t.duration || 30),
+      category: mapSlotCategory(t.category),
+      date: t.date || activeDate,
+      time: t.timeSlot || '',
+    }));
+    navigate('/dashboard');
+  };
 
   const [showAdd, setShowAdd]       = useState(false);
   const [editing, setEditing]       = useState<Task | null>(null);
@@ -227,7 +252,8 @@ export default function DayPlannerPage() {
                     onToggle={() => toggleTask(t.id)}
                     onEdit={() => { setEditing(t); setShowAdd(true); }}
                     onDelete={() => deleteTask(t.id)}
-                    onFocus={() => setFocusTask(t)} />
+                    onFocus={() => setFocusTask(t)}
+                    onPlanify={() => planifyTask(t)} />
                 ))}
               </div>
             </div>
@@ -450,7 +476,7 @@ function CalendarStrip({ activeDate, tasksByDate, onSelect }: { activeDate: stri
 }
 
 // ── Carte tâche ────────────────────────────────────────────────────────────────
-function TaskCard({ task, cat, isFuture, onToggle, onEdit, onDelete, onFocus }: any) {
+function TaskCard({ task, cat, isFuture, onToggle, onEdit, onDelete, onFocus, onPlanify }: any) {
   return (
     <motion.div layout initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
       className={`flex items-start gap-3 bg-white border rounded-xl p-3 transition-all ${task.done ? 'border-teal-200 opacity-70' : 'border-line'}`}
@@ -483,6 +509,10 @@ function TaskCard({ task, cat, isFuture, onToggle, onEdit, onDelete, onFocus }: 
           </button>
         )}
         <div className="flex gap-1.5">
+          {!task.done && (
+            <button onClick={onPlanify} aria-label="Planifier une session" title="Planifier une session de focus (calendrier)"
+              className="text-ink-400 hover:text-teal-600"><CalendarPlus size={16} strokeWidth={2} /></button>
+          )}
           <button onClick={onEdit} aria-label="Modifier" className="text-ink-400 hover:text-teal-500"><Pencil size={16} strokeWidth={2} /></button>
           <button onClick={onDelete} aria-label="Supprimer" className="text-ink-400 hover:text-red-500"><Trash2 size={16} strokeWidth={2} /></button>
         </div>
