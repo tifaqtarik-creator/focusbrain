@@ -5,6 +5,7 @@ import { AuthRequest } from '../middleware/auth';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import sharp from 'sharp';
 import { persistUpload } from '../lib/storage';
 
 const router = Router();
@@ -128,8 +129,25 @@ router.post('/me/avatar', (req: AuthRequest, res) => {
     if (!file) return res.status(400).json({ error: 'Aucune image reçue' });
 
     const BASE = process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 3001}`;
-    const cloud = await persistUpload(file.path, 'avatars'); // Cloudinary si configuré
-    const avatarUrl = cloud || `${BASE}/uploads/avatars/${file.filename}`;
+
+    // Normalisation : orientation EXIF + recadrage carré 512×512 centré sur le sujet + JPEG léger.
+    // → avatar net et bien cadré quel que soit le type de photo (portrait, paysage, PNG/WEBP/GIF, très grande).
+    const squarePath = path.join(AVATAR_DIR, `${file.filename}.sq.jpg`);
+    try {
+      await sharp(file.path, { animated: false })
+        .rotate()                                                    // applique l'orientation EXIF (plus de photos de travers)
+        .resize(512, 512, { fit: 'cover', position: 'attention' })   // carré, vise le sujet/visage
+        .flatten({ background: '#ffffff' })                          // aplatit la transparence (PNG/WEBP)
+        .jpeg({ quality: 85, mozjpeg: true })
+        .toFile(squarePath);
+    } catch {
+      fs.promises.unlink(file.path).catch(() => {});
+      return res.status(400).json({ error: 'Image illisible. Essaie une autre photo (JPG, PNG ou WEBP).' });
+    }
+    fs.promises.unlink(file.path).catch(() => {}); // supprimer l'original brut (on garde la version carrée)
+
+    const cloud = await persistUpload(squarePath, 'avatars'); // Cloudinary si configuré (supprime le local)
+    const avatarUrl = cloud || `${BASE}/uploads/avatars/${path.basename(squarePath)}`;
 
     try {
       // Supprimer l'ancienne photo locale (si hébergée chez nous)

@@ -633,7 +633,9 @@ export default function Dashboard() {
                   <div className="px-1 py-0.5 overflow-hidden flex items-center gap-1.5">
                     <span className="w-9 h-9 rounded-full bg-white/30 overflow-hidden flex items-center justify-center text-sm font-black text-white shrink-0 border border-white/40">
                       {p._shownAvatar
-                        ? <img src={p._shownAvatar} alt="" className="w-full h-full object-cover" />
+                        ? <img src={p._shownAvatar} alt="" loading="lazy" referrerPolicy="no-referrer"
+                            className="w-full h-full object-cover object-center"
+                            onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
                         : (p._shownName?.[0]?.toUpperCase() || <Brain size={16} strokeWidth={2} />)}
                     </span>
                     <p className="text-xs font-bold text-white truncate">{arg.event.title}</p>
