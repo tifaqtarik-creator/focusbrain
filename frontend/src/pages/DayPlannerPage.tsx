@@ -556,7 +556,7 @@ function TaskFocusTimer({ task, cat, onClose, onComplete }: {
 
   const color = cat?.borderColor || '#2E9D89';
   const mm = Math.floor(remaining / 60), ss = remaining % 60;
-  const R = 130, C = 2 * Math.PI * R;
+  const R = 150, C = 2 * Math.PI * R;
   const progress = total ? remaining / total : 0;
   const reset   = () => { setRemaining(total); setDone(false); setRunning(true); };
   const addFive = () => setRemaining(s => s + 300);
@@ -564,65 +564,76 @@ function TaskFocusTimer({ task, cat, onClose, onComplete }: {
   return (
     <motion.div className="fixed inset-0 bg-ink-900/95 z-[60] flex items-center justify-center p-4"
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-      <motion.div className="text-center w-full max-w-sm max-h-[94vh] overflow-y-auto no-scrollbar px-1 py-2"
-        initial={{ scale: 0.92, y: 14 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.92, opacity: 0 }}>
-        {/* Catégorie + tâche */}
-        <div className="flex items-center justify-center gap-1.5 mb-1 text-white/70 text-sm">
-          {cat?.Icon && <cat.Icon size={16} strokeWidth={2} />} {cat?.label}
-        </div>
-        <h3 className="text-white font-black text-xl mb-6 px-4">{task.title}</h3>
+      <motion.div className="w-full max-w-4xl max-h-[94vh] overflow-y-auto no-scrollbar"
+        initial={{ scale: 0.95, y: 14 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, opacity: 0 }}>
+        <div className="flex flex-col md:flex-row md:items-center gap-6 md:gap-10 px-1 py-2">
 
-        {/* Grand cercle */}
-        <div className="relative w-72 h-72 mx-auto mb-7">
-          <svg className="w-full h-full -rotate-90" viewBox="0 0 300 300">
-            <circle cx="150" cy="150" r={R} fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="14" />
-            <circle cx="150" cy="150" r={R} fill="none" stroke={color} strokeWidth="14" strokeLinecap="round"
-              strokeDasharray={C} strokeDashoffset={C * (1 - progress)}
-              style={{ transition: 'stroke-dashoffset 1s linear' }} />
-          </svg>
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
-            {done ? (
-              <>
-                <CheckCircle2 size={48} strokeWidth={2} className="text-teal-400 mb-1" />
-                <span className="text-white font-black text-xl">Terminé !</span>
-              </>
+          {/* ── COLONNE GAUCHE : minuteur ── */}
+          <div className="md:flex-1 text-center flex flex-col items-center">
+            <div className="flex items-center justify-center gap-1.5 mb-1 text-white/70 text-sm">
+              {cat?.Icon && <cat.Icon size={16} strokeWidth={2} />} {cat?.label}
+            </div>
+            <h3 className="text-white font-black text-xl mb-6 px-4">{task.title}</h3>
+
+            {/* Grand cercle */}
+            <div className="relative mb-7" style={{ width: 340, height: 340, maxWidth: '82vw', maxHeight: '82vw' }}>
+              <svg className="w-full h-full -rotate-90" viewBox="0 0 340 340">
+                <circle cx="170" cy="170" r={R} fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="16" />
+                <circle cx="170" cy="170" r={R} fill="none" stroke={color} strokeWidth="16" strokeLinecap="round"
+                  strokeDasharray={C} strokeDashoffset={C * (1 - progress)}
+                  style={{ transition: 'stroke-dashoffset 1s linear' }} />
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                {done ? (
+                  <>
+                    <CheckCircle2 size={56} strokeWidth={2} className="text-teal-400 mb-1" />
+                    <span className="text-white font-black text-2xl">Terminé !</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-white font-black tabular-nums" style={{ fontSize: 72, lineHeight: 1 }}>
+                      {String(mm).padStart(2, '0')}:{String(ss).padStart(2, '0')}
+                    </span>
+                    <span className="text-white/50 text-sm mt-2">{running ? 'focus en cours' : 'en pause'}</span>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Contrôles */}
+            {!done ? (
+              <div className="flex items-center justify-center gap-3">
+                <button onClick={addFive} className="bg-white/10 hover:bg-white/20 text-white font-bold px-4 py-3 rounded-2xl text-sm">+5 min</button>
+                <button onClick={() => setRunning(r => !r)} aria-label={running ? 'Pause' : 'Reprendre'}
+                  className="bg-white text-ink-900 w-16 h-16 rounded-full flex items-center justify-center shadow-card">
+                  {running ? <Pause size={26} strokeWidth={2.5} /> : <Play size={26} strokeWidth={2.5} className="ml-1" />}
+                </button>
+                <button onClick={reset} aria-label="Réinitialiser" className="bg-white/10 hover:bg-white/20 text-white px-4 py-3 rounded-2xl"><RotateCcw size={18} strokeWidth={2} /></button>
+              </div>
             ) : (
-              <>
-                <span className="text-white font-black tabular-nums" style={{ fontSize: 56, lineHeight: 1 }}>
-                  {String(mm).padStart(2, '0')}:{String(ss).padStart(2, '0')}
-                </span>
-                <span className="text-white/50 text-sm mt-2">{running ? 'focus en cours' : 'en pause'}</span>
-              </>
+              <button onClick={onComplete} className="bg-teal-500 hover:bg-teal-600 text-white font-black px-6 py-3.5 rounded-2xl inline-flex items-center gap-2">
+                <Check size={20} strokeWidth={2.5} /> Marquer la tâche comme faite
+              </button>
             )}
-          </div>
-        </div>
 
-        {/* Contrôles */}
-        {!done ? (
-          <div className="flex items-center justify-center gap-3">
-            <button onClick={addFive} className="bg-white/10 hover:bg-white/20 text-white font-bold px-4 py-3 rounded-2xl text-sm">+5 min</button>
-            <button onClick={() => setRunning(r => !r)} aria-label={running ? 'Pause' : 'Reprendre'}
-              className="bg-white text-ink-900 w-16 h-16 rounded-full flex items-center justify-center shadow-card">
-              {running ? <Pause size={26} strokeWidth={2.5} /> : <Play size={26} strokeWidth={2.5} className="ml-1" />}
+            <button onClick={onClose} className="mt-5 text-white/60 hover:text-white text-sm font-semibold">
+              {done ? 'Fermer' : 'Quitter le minuteur'}
             </button>
-            <button onClick={reset} aria-label="Réinitialiser" className="bg-white/10 hover:bg-white/20 text-white px-4 py-3 rounded-2xl"><RotateCcw size={18} strokeWidth={2} /></button>
           </div>
-        ) : (
-          <button onClick={onComplete} className="bg-teal-500 hover:bg-teal-600 text-white font-black px-6 py-3.5 rounded-2xl inline-flex items-center gap-2">
-            <Check size={20} strokeWidth={2.5} /> Marquer la tâche comme faite
-          </button>
-        )}
 
-        {/* ── Musique de focus (playlist Spotify) ── */}
-        <div className="mt-5">
-          <button onClick={() => setShowMusic(v => !v)}
-            className="inline-flex items-center gap-2 text-white/70 hover:text-white text-sm font-semibold">
-            <Music size={16} strokeWidth={2} /> Musique
-            {showMusic ? <ChevronUp size={15} strokeWidth={2.5} /> : <ChevronDown size={15} strokeWidth={2.5} />}
-          </button>
+          {/* ── COLONNE DROITE : musique ── */}
+          <div className="md:flex-1 md:max-w-md md:border-l md:border-white/10 md:pl-8">
+            {/* Bouton « Musique » (mobile uniquement) */}
+            <button onClick={() => setShowMusic(v => !v)}
+              className="md:hidden inline-flex items-center gap-2 text-white/70 hover:text-white text-sm font-semibold">
+              <Music size={16} strokeWidth={2} /> Musique
+              {showMusic ? <ChevronUp size={15} strokeWidth={2.5} /> : <ChevronDown size={15} strokeWidth={2.5} />}
+            </button>
 
-          {showMusic && (
-            <div className="mt-3 text-left">
+            <div className={`${showMusic ? 'block' : 'hidden'} md:block text-left mt-3 md:mt-0`}>
+              <p className="hidden md:flex items-center gap-2 text-white/70 text-sm font-semibold mb-3">
+                <Music size={16} strokeWidth={2} /> Musique de focus
+              </p>
               {/* Source : YouTube (recherche gratuite) ou Spotify */}
               <div className="flex gap-1.5 mb-3 bg-white/10 rounded-xl p-1">
                 {(['youtube', 'spotify'] as const).map(s => (
@@ -650,21 +661,17 @@ function TaskFocusTimer({ task, cat, onClose, onComplete }: {
                   </select>
                   <iframe title="Lecteur de musique"
                     src={`https://open.spotify.com/embed/playlist/${playlistId}?utm_source=generator&theme=0`}
-                    width="100%" height={152} loading="lazy" style={{ border: 0, borderRadius: 12 }}
+                    width="100%" height={200} loading="lazy" style={{ border: 0, borderRadius: 12 }}
                     allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" />
-                  <p className="text-white/40 text-[11px] mt-2 text-center">
+                  <p className="text-white/40 text-[11px] mt-2">
                     ▶ dans le lecteur pour choisir un titre — la musique continue pendant le minuteur.
                   </p>
                 </>
               )}
             </div>
-          )}
-        </div>
+          </div>
 
-        {/* Fermer */}
-        <button onClick={onClose} className="block mx-auto mt-5 text-white/60 hover:text-white text-sm font-semibold">
-          {done ? 'Fermer' : 'Quitter le minuteur'}
-        </button>
+        </div>
       </motion.div>
     </motion.div>
   );
