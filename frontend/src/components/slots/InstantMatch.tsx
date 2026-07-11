@@ -7,6 +7,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getSocket, connectSocket } from '../../lib/socket';
+import { ensureNotifPermission, notify } from '../../lib/bodyDoubling';
 import {
   Loader2, X, Check, Clock, Globe, Target, Brain, ShieldCheck, Zap, Volume2, MessageSquare,
 } from 'lucide-react';
@@ -41,6 +42,22 @@ const TDAH_LABEL: Record<string, string> = {
 };
 const AMBIANCE_LABEL: Record<string, string> = { silence: 'Silence total', echanges: 'Petits échanges' };
 
+// Bip discret quand une proposition arrive (la fenêtre n'est que de 15 s,
+// l'utilisateur est souvent sur un autre onglet)
+function playPing() {
+  try {
+    const ctx = new AudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.15, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
+    osc.start(); osc.stop(ctx.currentTime + 0.6);
+    setTimeout(() => ctx.close().catch(() => {}), 800);
+  } catch { /* audio indisponible : tant pis */ }
+}
+
 function reliability(c: number, n: number): { label: string; good: boolean } {
   const total = c + n;
   if (total === 0) return { label: 'Nouveau membre', good: false };
@@ -63,22 +80,31 @@ export default function InstantMatch({
     connectSocket();
     const socket = getSocket();
 
+    const prevTitle = document.title;
     const backToSearch = () => {
       setPhase('searching'); setPartner(null); setMyAccept(false); setPartnerAccept(false);
+      document.title = prevTitle;
       if (cdRef.current) clearInterval(cdRef.current);
     };
+
+    // Demander la permission de notifier dès le début de la recherche
+    ensureNotifPermission();
 
     const onWaiting  = () => setPhase('searching');
     const onProposal = (d: { partner: PartnerCard; ttl: number }) => {
       setPartner(d.partner); setMyAccept(false); setPartnerAccept(false); setPhase('proposal');
       const secs = Math.round((d.ttl || 15000) / 1000);
       setCountdown(secs);
+      // Alerter même si l'utilisateur est sur un autre onglet : son + notification + titre
+      playPing();
+      notify('Partenaire trouvé ! 🎉', `${d.partner.name} est partant·e pour ${d.partner.duration} min — tu as ${secs}s pour accepter`);
+      document.title = '🔔 Partenaire trouvé ! — FocusBrain';
       if (cdRef.current) clearInterval(cdRef.current);
       cdRef.current = setInterval(() => setCountdown(s => (s <= 1 ? 0 : s - 1)), 1000);
     };
     const onPartnerAccepted = () => setPartnerAccept(true);
     const onEnded   = () => backToSearch();
-    const onMatch   = (d: { slotId: string }) => { if (cdRef.current) clearInterval(cdRef.current); onMatched(d.slotId); };
+    const onMatch   = (d: { slotId: string }) => { document.title = prevTitle; if (cdRef.current) clearInterval(cdRef.current); onMatched(d.slotId); };
 
     socket.on('instant:waiting', onWaiting);
     socket.on('instant:proposal', onProposal);
@@ -99,6 +125,7 @@ export default function InstantMatch({
       socket.off('instant:partner_accepted', onPartnerAccepted);
       socket.off('instant:proposal_ended', onEnded);
       socket.off('session:matched', onMatch);
+      document.title = prevTitle;
       if (cdRef.current) clearInterval(cdRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

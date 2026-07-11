@@ -32,17 +32,11 @@ const PAY_METHODS: { icon: LucideIcon; label: string }[] = [
   { icon: Apple,      label: 'Apple Pay' },
 ];
 
-const DONORS = [
-  { name: 'Yasmine B.', amount: '20€', msg: 'Enfin une appli qui nous comprend ! ❤️' },
-  { name: 'Adam R.', amount: '10€', msg: 'Continue Tarik, c\'est révolutionnaire' },
-  { name: 'Anonyme', amount: '5€',  msg: 'Petit geste pour une grande cause 💜' },
-];
 
 export default function Donate() {
   const [selected, setSelected]   = useState<number>(10);
   const [custom, setCustom]       = useState('');
   const [useCustom, setUseCustom] = useState(false);
-  const [name, setName]           = useState('');
   const [showConfirm, setShowConfirm] = useState(false);
 
   const finalAmount = useCustom ? parseFloat(custom) || 0 : selected;
@@ -201,19 +195,6 @@ export default function Donate() {
             </button>
           </div>
 
-          {/* Nom optionnel */}
-          <div className="mb-6">
-            <p className="text-xs text-ink-400 font-bold uppercase mb-2">Ton prénom (optionnel)</p>
-            <input
-              value={name}
-              onChange={e => setName(e.target.value)}
-              placeholder="Ex: Yasmine"
-              maxLength={30}
-              className="w-full border-2 border-line focus:border-violet-400 rounded-xl px-4 py-2.5 text-sm outline-none transition-colors"
-            />
-            <p className="flex items-center gap-1.5 text-xs text-ink-400 mt-1">Apparaîtra dans le mur des donateurs <Heart size={12} strokeWidth={2} className="fill-current text-violet-500" /></p>
-          </div>
-
           {/* Bouton principal — PayPal.me */}
           <button
             onClick={handleDonate}
@@ -244,33 +225,10 @@ export default function Donate() {
         </motion.div>
       </section>
 
-      {/* Mur des donateurs */}
-      <section className="max-w-3xl mx-auto px-6 pb-16">
-        <h2 className="flex items-center justify-center gap-2 text-2xl font-black text-center text-ink-900 mb-2"><Heart size={22} strokeWidth={2} className="fill-current text-violet-500" /> Ils ont déjà soutenu</h2>
-        <p className="text-ink-400 text-center text-sm mb-8">La communauté TDAH qui croit au projet</p>
-        <div className="grid md:grid-cols-3 gap-4">
-          {DONORS.map((d, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, scale: 0.95 }}
-              whileInView={{ opacity: 1, scale: 1 }}
-              viewport={{ once: true }}
-              transition={{ delay: i * 0.1 }}
-              className="bg-white border border-line rounded-2xl p-5 shadow-soft"
-            >
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 bg-violet-100 rounded-full flex items-center justify-center font-black text-violet-600">
-                  {d.name[0]}
-                </div>
-                <div>
-                  <p className="font-bold text-ink-900 text-sm">{d.name}</p>
-                  <p className="text-violet-600 font-black text-sm">{d.amount}</p>
-                </div>
-              </div>
-              <p className="text-ink-500 text-sm italic">"{d.msg}"</p>
-            </motion.div>
-          ))}
-        </div>
+      {/* Appel honnête — pas de faux témoignages */}
+      <section className="max-w-3xl mx-auto px-6 pb-16 text-center">
+        <h2 className="flex items-center justify-center gap-2 text-2xl font-black text-ink-900 mb-2"><Heart size={22} strokeWidth={2} className="fill-current text-violet-500" /> Sois parmi les premiers à soutenir</h2>
+        <p className="text-ink-400 text-sm">Chaque don, même petit, aide directement le développement du projet.</p>
       </section>
 
       {/* Message personnel */}
@@ -314,7 +272,6 @@ export default function Donate() {
               <h3 className="text-2xl font-black text-ink-900 mb-2">Confirmer le don</h3>
               <p className="text-ink-500 mb-1">Tu vas donner</p>
               <p className="text-4xl font-black text-violet-600 mb-1">{finalAmount}€</p>
-              {name && <p className="text-ink-400 text-sm mb-4">en tant que <strong>{name}</strong></p>}
               <p className="text-ink-400 text-sm mb-4">
                 Tu seras redirigé(e) vers <strong>PayPal.me</strong> — tu peux payer par carte bancaire, Google Pay ou compte PayPal, sans restriction de pays.
               </p>

@@ -140,11 +140,12 @@ export default function ClaudeChat({ onExit }: { onExit?: () => void }) {
         const lines = buf.split('\n'); buf = lines.pop() || '';
         for (const line of lines) {
           if (!line.startsWith('data: ')) continue;
-          try {
-            const d = JSON.parse(line.slice(6));
-            if (d.text) { full += d.text; setStream(full); }
-            if (d.error) throw new Error(d.error);
-          } catch { /* skip */ }
+          // Le parse peut échouer sur un fragment (ignoré), mais une erreur envoyée
+          // par le serveur doit REMONTER — pas être avalée par le catch du parse
+          let d: any = null;
+          try { d = JSON.parse(line.slice(6)); } catch { continue; }
+          if (d.error) throw new Error(d.error);
+          if (d.text) { full += d.text; setStream(full); }
         }
       }
       setMessages(prev => [...prev, { id: `a-${Date.now()}`, role: 'assistant', content: full }]);

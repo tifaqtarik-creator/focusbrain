@@ -19,11 +19,13 @@ import socialRoutes from './routes/social';
 import { registerSocketHandlers } from './socket/handlers';
 import { startReminderScheduler } from './lib/reminders';
 import { authMiddleware } from './middleware/auth';
-import { rateLimiter } from './middleware/rateLimit';
+import { rateLimiter, aiLimiter, aiDailyLimiter } from './middleware/rateLimit';
 
 dotenv.config();
 
 const app = express();
+// Derrière le proxy Render : nécessaire pour que req.ip soit la vraie IP du visiteur (rate limiting)
+app.set('trust proxy', 1);
 const httpServer = createServer(app);
 
 const ALLOWED_ORIGINS = [
@@ -62,7 +64,7 @@ app.use('/api/subscriptions', authMiddleware, subscriptionRoutes);
 app.use('/api/slots', authMiddleware, slotRoutes);
 app.use('/api/map', authMiddleware, mapRoutes);
 app.use('/api/payments', authMiddleware, paymentRoutes);
-app.use('/api/adah',    authMiddleware, adahRoutes);
+app.use('/api/adah',    authMiddleware, aiLimiter, aiDailyLimiter, adahRoutes);
 app.use('/api/social',  authMiddleware, socialRoutes);
 
 app.get('/health', (_req, res) => res.json({ status: 'ok', service: 'focusbrain-api' }));

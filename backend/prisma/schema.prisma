@@ -111,6 +111,7 @@ model User {
   aiAvatarStyle   String?      @default("chaleureux") // chaleureux | direct
   role            UserRole     @default(USER)
   isPremium       Boolean      @default(false)
+  premiumUntil    DateTime?    // fin de l'abonnement — repasse isPremium à false une fois dépassée
   stripeId        String?      @unique
   payments        Payment[]
   emailVerified   Boolean      @default(false)
@@ -218,7 +219,7 @@ model Participant {
   leftAt         DateTime?
 
   session Session @relation(fields: [sessionId], references: [id])
-  user    User    @relation(fields: [userId], references: [id])
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([sessionId, userId])
   @@map("participants")
@@ -231,8 +232,8 @@ model CircleMember {
   sessionCount Int      @default(0)
   createdAt    DateTime @default(now())
 
-  user    User @relation("CircleUser", fields: [userId], references: [id])
-  partner User @relation("CirclePartner", fields: [partnerId], references: [id])
+  user    User @relation("CircleUser", fields: [userId], references: [id], onDelete: Cascade)
+  partner User @relation("CirclePartner", fields: [partnerId], references: [id], onDelete: Cascade)
 
   @@unique([userId, partnerId])
   @@map("circle_members")
@@ -245,7 +246,7 @@ model Badge {
   earnedAt  DateTime  @default(now())
   shownAt   DateTime?
 
-  user User @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, type])
   @@map("badges")
@@ -262,7 +263,7 @@ model MoodLog {
   fatigue   Int
   loggedAt  DateTime @default(now())
 
-  user    User    @relation(fields: [userId], references: [id])
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   session Session @relation(fields: [sessionId], references: [id])
 
   @@map("mood_logs")
@@ -282,7 +283,7 @@ model ForumPost {
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
 
-  user   User       @relation(fields: [userId], references: [id])
+  user   User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   parent ForumPost? @relation("PostReplies", fields: [parentId], references: [id])
   replies ForumPost[] @relation("PostReplies")
 
@@ -298,7 +299,7 @@ model Subscription {
   currentPeriodEnd  DateTime
   createdAt         DateTime @default(now())
 
-  user User @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("subscriptions")
 }
@@ -312,7 +313,7 @@ model CoachProfile {
   verifiedAt     DateTime?
   createdAt      DateTime @default(now())
 
-  user User @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("coach_profiles")
 }
@@ -329,7 +330,7 @@ model UserLocation {
   statusExpiry DateTime?                          // expiration automatique
   updatedAt    DateTime @updatedAt
 
-  user User @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   @@map("user_locations")
 }
 
@@ -349,7 +350,7 @@ model TdahPlace {
   validations Int      @default(0)              // nb de validations membres
   addedBy     String
   createdAt   DateTime @default(now())
-  user        User     @relation(fields: [addedBy], references: [id])
+  user        User     @relation(fields: [addedBy], references: [id], onDelete: Cascade)
   @@map("tdah_places")
 }
 
@@ -361,8 +362,8 @@ model Message {
   readAt    DateTime?
   createdAt DateTime  @default(now())
 
-  from User @relation("MessageFrom", fields: [fromId], references: [id])
-  to   User @relation("MessageTo",   fields: [toId],   references: [id])
+  from User @relation("MessageFrom", fields: [fromId], references: [id], onDelete: Cascade)
+  to   User @relation("MessageTo",   fields: [toId],   references: [id], onDelete: Cascade)
   @@map("messages")
 }
 
@@ -375,10 +376,11 @@ model MeetingProposal {
   location   String?
   message    String?
   status     String   @default("PENDING")
+  rating     Int?     // note 1-5 laissée après la rencontre
   createdAt  DateTime @default(now())
 
-  from User @relation("ProposalFrom", fields: [fromId], references: [id])
-  to   User @relation("ProposalTo",   fields: [toId],   references: [id])
+  from User @relation("ProposalFrom", fields: [fromId], references: [id], onDelete: Cascade)
+  to   User @relation("ProposalTo",   fields: [toId],   references: [id], onDelete: Cascade)
   @@map("meeting_proposals")
 }
 
@@ -406,8 +408,8 @@ model Slot {
   noShow       Boolean  @default(false) // absence constatée (KPI)
   createdAt    DateTime @default(now())
 
-  creator   User           @relation("SlotCreator", fields: [creatorId], references: [id])
-  partner   User?          @relation("SlotPartner", fields: [partnerId], references: [id])
+  creator   User           @relation("SlotCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  partner   User?          @relation("SlotPartner", fields: [partnerId], references: [id], onDelete: SetNull)
   requests  SlotRequest[]
   feedbacks SlotFeedback[]
   messages  SlotMessage[]
@@ -425,7 +427,7 @@ model SlotMessage {
   createdAt   DateTime @default(now())
 
   slot Slot @relation(fields: [slotId], references: [id], onDelete: Cascade)
-  from User @relation(fields: [fromId], references: [id])
+  from User @relation(fields: [fromId], references: [id], onDelete: Cascade)
 
   @@index([slotId])
   @@map("slot_messages")
@@ -442,7 +444,7 @@ model SlotFeedback {
   createdAt DateTime @default(now())
 
   slot Slot @relation(fields: [slotId], references: [id], onDelete: Cascade)
-  user User @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([slotId, userId])              // 1 avis par personne par session
   @@map("slot_feedbacks")
@@ -456,8 +458,8 @@ model SlotRequest {
   candidateTask String?  // ce que le candidat veut faire
   createdAt     DateTime @default(now())
 
-  slot Slot @relation(fields: [slotId], references: [id])
-  user User @relation(fields: [userId], references: [id])
+  slot Slot @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([slotId, userId])
   @@map("slot_requests")
@@ -491,7 +493,7 @@ model Payment {
   createdAt   DateTime @default(now())
   completedAt DateTime?
 
-  user User @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   @@map("payments")
 }
 
@@ -502,7 +504,7 @@ model RefreshToken {
   expiresAt DateTime
   createdAt DateTime @default(now())
 
-  user User @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("refresh_tokens")
 }

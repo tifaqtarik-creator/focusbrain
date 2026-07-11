@@ -71,19 +71,21 @@ router.get('/me', async (req: AuthRequest, res) => {
     });
     if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
 
-    // Stats positives uniquement
-    const totalSessions = await prisma.participant.count({ where: { userId: req.userId! } });
-    const totalMinutes = await prisma.participant.findMany({
-      where: { userId: req.userId!, leftAt: { not: null } },
-      include: { session: { select: { duration: true } } },
+    // Stats positives uniquement — basées sur le flux Slot (le vrai produit),
+    // l'ancienne table `participant` n'est plus alimentée
+    const mySlots = await prisma.slot.findMany({
+      where: { OR: [{ creatorId: req.userId! }, { partnerId: req.userId! }], completedAt: { not: null } },
+      select: { duration: true, creatorId: true, partnerId: true },
     });
-    const focusHours = totalMinutes.reduce((acc, p) => acc + p.session.duration, 0);
-    const uniquePartners = await prisma.participant.groupBy({
-      by: ['sessionId'],
-      where: { userId: req.userId! },
-    });
+    const totalSessions = mySlots.length;
+    const focusMinutes = mySlots.reduce((acc, s) => acc + s.duration, 0);
+    const partnerIds = new Set(
+      mySlots
+        .map(s => (s.creatorId === req.userId ? s.partnerId : s.creatorId))
+        .filter((id): id is string => !!id && id !== req.userId),
+    );
 
-    res.json({ ...user, stats: { totalSessions, focusMinutes: focusHours, uniquePartners: uniquePartners.length } });
+    res.json({ ...user, stats: { totalSessions, focusMinutes, uniquePartners: partnerIds.size } });
   } catch {
     res.status(500).json({ error: 'Erreur serveur' });
   }

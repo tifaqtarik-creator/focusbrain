@@ -41,9 +41,9 @@ const STATUSES = [
 // Types de lieux TDAH-friendly
 const PLACE_TYPES = [
   { value: 'CAFE',      Icon: Coffee,   label: 'Café calme',     color: '#DB9A45' },
-  { value: 'LIBRARY',   Icon: BookOpen, label: 'Bibliothèque',   color: '#2E9D89' },
+  { value: 'LIBRARY',   Icon: BookOpen, label: 'Bibliothèque',   color: '#3B6FC4' },
   { value: 'COWORKING', Icon: Laptop,   label: 'Coworking',      color: '#7077B0' },
-  { value: 'PARK',      Icon: Trees,    label: 'Parc focus',     color: '#1F8473' },
+  { value: 'PARK',      Icon: Trees,    label: 'Parc focus',     color: '#2F5AA8' },
 ];
 
 // ── Constantes ────────────────────────────────────────────────────────────────

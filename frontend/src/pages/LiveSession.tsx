@@ -447,7 +447,8 @@ export default function LiveSession() {
             }
             setTaskSet(true);
             setPhase('live');
-            if (res.data.duration) startTimer(res.data.duration);
+            // startedAt (serveur) → le timer reprend au bon endroit après un F5
+            if (res.data.duration) startTimer(res.data.duration, res.data.startedAt);
           } else {
             setPhase('checkin');
           }
@@ -493,8 +494,21 @@ export default function LiveSession() {
   }, [phase]);
 
   // ── Timer ─────────────────────────────────────────────────────────────────
-  const startTimer = (durationMin: number) => {
-    setTimeLeft(durationMin * 60);
+  // startedAt (optionnel) : horodatage serveur du vrai départ — permet de reprendre
+  // le décompte au bon endroit après un rafraîchissement de page.
+  const startTimer = (durationMin: number, startedAt?: string) => {
+    const elapsedSec = startedAt
+      ? Math.max(0, Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000))
+      : 0;
+    const remaining = durationMin * 60 - elapsedSec;
+    if (remaining <= 0) {
+      // La session était déjà finie au moment du rechargement
+      setTimeLeft(0);
+      setPhase('done');
+      setTimeout(() => setShowFeedback(true), 1000);
+      return;
+    }
+    setTimeLeft(remaining);
     timerRef.current = setInterval(() => {
       if (pausedRef.current) return;            // en pause → on ne décompte pas
       setTimeLeft(prev => {

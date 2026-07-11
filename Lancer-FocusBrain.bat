@@ -11,6 +11,13 @@ echo.
 echo  Demarrage des serveurs, patiente 15 secondes...
 echo.
 
+REM --- Demarrer la base de donnees PostgreSQL (locale, portable) ---
+"%~dp0pgsql\bin\pg_ctl.exe" status -D "%~dp0pgdata" >nul 2>&1
+if errorlevel 1 (
+    echo  Demarrage de la base de donnees...
+    "%~dp0pgsql\bin\pg_ctl.exe" start -D "%~dp0pgdata" -l "%~dp0pgdata\postgres.log" -w
+)
+
 REM --- Demarrer le BACKEND dans une nouvelle fenetre ---
 start "FocusBrain - Backend" cmd /k "cd /d %~dp0backend && npm run dev"
 

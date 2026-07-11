@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { MotionConfig } from 'framer-motion';
 import { useAppStore } from './stores/useStore';
 import Landing from './pages/Landing';
 import Register from './pages/Register';
@@ -34,6 +35,8 @@ export default function App() {
 
   return (
     <div className={lowStim ? 'low-stim' : ''}>
+      {/* reducedMotion : Framer Motion suit le réglage système, ou s'arrête totalement en mode Low Stim */}
+      <MotionConfig reducedMotion={lowStim ? 'always' : 'user'}>
       <PlannerProvider>
       <BrowserRouter basename={import.meta.env.BASE_URL}>
         <Routes>
@@ -66,6 +69,7 @@ export default function App() {
         </Routes>
       </BrowserRouter>
       </PlannerProvider>
+      </MotionConfig>
     </div>
   );
 }

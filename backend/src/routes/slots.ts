@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import { z } from 'zod';
 import { randomUUID } from 'crypto';
 import { AccessToken } from 'livekit-server-sdk';
@@ -7,9 +7,9 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { persistUpload } from '../lib/storage';
+import { checkAndAwardBadges } from '../services/badges';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // ── Upload de pièces jointes du chat ─────────────────────────────────────────
 const CHAT_DIR = path.join(process.cwd(), 'uploads', 'chat');
@@ -530,8 +530,11 @@ router.get('/:id/token', async (req: any, res) => {
   const partnerTask  = isCreator ? slot.partnerTask : slot.creatorTask;
 
   // KPI : marquer la session comme lancée + 1ère session de l'utilisateur
-  if (!slot.startedAt) {
-    await prisma.slot.update({ where: { id: slot.id }, data: { startedAt: new Date() } });
+  // startedAt est renvoyé au client pour que le timer survive à un rafraîchissement
+  let startedAt = slot.startedAt;
+  if (!startedAt) {
+    startedAt = new Date();
+    await prisma.slot.update({ where: { id: slot.id }, data: { startedAt } });
   }
   await prisma.user.updateMany({
     where: { id: req.userId, firstSessionAt: null },
@@ -553,6 +556,7 @@ router.get('/:id/token', async (req: any, res) => {
       type: slot.type,
       duration: slot.duration,
       startTime: slot.startTime,
+      startedAt,
       partner: other,
       myTask,
       partnerTask,
@@ -567,6 +571,7 @@ router.get('/:id/token', async (req: any, res) => {
     type: slot.type,
     duration: slot.duration,
     startTime: slot.startTime,
+    startedAt,
     partner: other,
     myTask,
     partnerTask,
@@ -629,6 +634,9 @@ router.post('/:id/complete', async (req: any, res) => {
     const ids = [slot.creatorId, slot.partnerId].filter(Boolean) as string[];
     if (ids.length) {
       await prisma.user.updateMany({ where: { id: { in: ids } }, data: { sessionsCompleted: { increment: 1 } } });
+      // Attribution des badges (récompense dopamine) — sans bloquer la réponse
+      Promise.all(ids.map(id => checkAndAwardBadges(id))).catch(err =>
+        console.error('[badges]', err?.message || err));
     }
   }
   res.json({ success: true });

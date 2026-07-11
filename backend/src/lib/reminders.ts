@@ -2,11 +2,10 @@
  * reminders.ts — Planificateur : rappels de session (anti no-show) + détection no-show.
  * Tourne toutes les 60s. Émet 'session:reminder' (push navigateur via socket) + email Resend.
  */
-import { PrismaClient } from '@prisma/client';
+import { prisma } from './prisma';
 import { Server } from 'socket.io';
 import { sendEmail, reminderEmailHtml } from './email';
 
-const prisma = new PrismaClient();
 
 export function startReminderScheduler(io: Server) {
   console.log('⏰ Planificateur de rappels démarré (60s)');
@@ -43,8 +42,13 @@ async function runSweep(io: Server) {
   }
 
   // ── 2) No-show : créneaux confirmés terminés sans lancement ──
+  // Bornes de date : éviter de rescanner toute la table à chaque minute
+  const twoDaysAgo = new Date(now.getTime() - 48 * 3600 * 1000);
   const ended = await prisma.slot.findMany({
-    where: { status: 'CONFIRMED', noShow: false, startedAt: null },
+    where: {
+      status: 'CONFIRMED', noShow: false, startedAt: null,
+      startTime: { gte: twoDaysAgo, lt: now },
+    },
   });
   for (const slot of ended) {
     const endTime = new Date(slot.startTime.getTime() + (slot.duration + 5) * 60000);
@@ -56,4 +60,10 @@ async function runSweep(io: Server) {
       }
     }
   }
+
+  // ── 3) Expiration Premium : un abonnement dépassé repasse en gratuit ──
+  await prisma.user.updateMany({
+    where: { isPremium: true, premiumUntil: { not: null, lt: now } },
+    data: { isPremium: false },
+  });
 }

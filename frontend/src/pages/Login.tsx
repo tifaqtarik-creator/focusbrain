@@ -69,7 +69,8 @@ export default function Login() {
           <div>
             <div className="flex justify-between items-center mb-2">
               <label className="font-semibold text-sm text-ink-700">{a.passwordLabel}</label>
-              <Link to="/forgot-password" className="text-teal-600 text-sm hover:underline">{a.forgot}</Link>
+              {/* Lien « mot de passe oublié » retiré : la fonctionnalité n'existe pas encore
+                  côté serveur — le remettre quand l'envoi d'email de réinitialisation sera implémenté */}
             </div>
             <div className="relative">
               <Lock size={18} strokeWidth={2} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-400 pointer-events-none" />

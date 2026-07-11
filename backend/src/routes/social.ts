@@ -2,10 +2,9 @@
  * social.ts — Favoris / re-match (Body Doubling)
  */
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // ── GET /api/social/favorites — Mes partenaires favoris ──────────────────────
 router.get('/favorites', async (req: any, res) => {

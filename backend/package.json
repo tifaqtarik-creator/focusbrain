@@ -42,5 +42,12 @@
     "prisma": "^5.22.0",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.3.3"
+  },
+  "allowScripts": {
+    "@prisma/client@5.22.0": true,
+    "@prisma/engines@5.22.0": true,
+    "msgpackr-extract@3.0.4": true,
+    "prisma@5.22.0": true,
+    "sharp@0.33.5": true
   }
 }

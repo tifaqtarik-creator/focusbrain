@@ -441,7 +441,7 @@ function CalendarStrip({ activeDate, tasksByDate, onSelect }: { activeDate: stri
   const iToday = days.findIndex(d => d.isToday);
   const fillW = (iToday + 0.5) * W;               // progression jusqu'au centre d'aujourd'hui
   const dotColor = (d: typeof days[number]) =>
-    d.complete ? '#2E9D89' : d.overdue ? '#DB9A45' : d.futureTasks ? '#7077B0' : '#D7E0DD';
+    d.complete ? '#3B6FC4' : d.overdue ? '#DB9A45' : d.futureTasks ? '#7077B0' : '#D7E0DD';
 
   return (
     <div className="overflow-x-auto pb-1" style={{ touchAction: 'pan-x' }}>
@@ -461,7 +461,7 @@ function CalendarStrip({ activeDate, tasksByDate, onSelect }: { activeDate: stri
                 <span className="rounded-full" style={{
                   width: d.isToday ? 15 : 12, height: d.isToday ? 15 : 12,
                   marginTop: d.isToday ? 13 : 14,
-                  background: d.isToday ? '#2E9D89' : dotColor(d),
+                  background: d.isToday ? '#3B6FC4' : dotColor(d),
                   border: `3px solid ${PAGE_BG}`,
                 }} />
               )}
@@ -554,7 +554,7 @@ function TaskFocusTimer({ task, cat, onClose, onComplete }: {
     return () => { if (tick.current) clearInterval(tick.current); };
   }, [running, done]);
 
-  const color = cat?.borderColor || '#2E9D89';
+  const color = cat?.borderColor || '#3B6FC4';
   const mm = Math.floor(remaining / 60), ss = remaining % 60;
   const R = 150, C = 2 * Math.PI * R;
   const progress = total ? remaining / total : 0;

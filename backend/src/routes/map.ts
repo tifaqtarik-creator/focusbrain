@@ -1,21 +1,31 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
+import { prisma } from '../lib/prisma';
 
 const router = Router();
-const prisma = new PrismaClient();
 
-// Flouter la position pour protéger la vie privée (~±3km)
-function fuzzCoord(coord: number): number {
-  return coord + (Math.random() - 0.5) * 0.055;
+// Flouter la position pour protéger la vie privée (~±3km).
+// DÉTERMINISTE : même membre = même décalage → les avatars ne se téléportent
+// plus à chaque rechargement, et la distance affichée reste stable.
+function hashCode(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+  return h;
+}
+function fuzzCoord(coord: number, seed: string): number {
+  const r = (Math.abs(hashCode(seed)) % 1000) / 1000; // 0..1, stable pour un même seed
+  return coord + (r - 0.5) * 0.055;
 }
 
 // ── GET /api/map/members — Membres visibles sur la carte ─────────────────────
 router.get('/members', async (req: any, res) => {
   const { tdahType, available, maxKm } = req.query;
 
+  // Ne montrer que les membres actifs récemment : un profil silencieux depuis
+  // plus de 7 jours ne doit plus apparaître « Disponible » (membres fantômes)
+  const activeSince = new Date(Date.now() - 7 * 24 * 3600 * 1000);
   const locations = await prisma.userLocation.findMany({
-    where: { isVisible: true, userId: { not: req.userId } },
+    where: { isVisible: true, userId: { not: req.userId }, updatedAt: { gte: activeSince } },
     include: {
       user: {
         select: {
@@ -41,8 +51,8 @@ router.get('/members', async (req: any, res) => {
     workStyle: l.user.workStyle,
     bio: l.user.bio,
     city: l.city,
-    lat: fuzzCoord(l.lat),
-    lng: fuzzCoord(l.lng),
+    lat: fuzzCoord(l.lat, l.userId + ':lat'),
+    lng: fuzzCoord(l.lng, l.userId + ':lng'),
     status: l.statusExpiry && l.statusExpiry < new Date() ? 'DISPONIBLE' : (l.status || 'DISPONIBLE'),
     isAvailable: l.status !== 'ABSENT',
     updatedAt: l.updatedAt,
@@ -227,9 +237,16 @@ router.post('/meetings/:id/rate', async (req: any, res) => {
   const { rating, addToCircle } = req.body;
   if (!rating || rating < 1 || rating > 5) return res.status(400).json({ error: 'Note invalide' });
 
+  // Seuls les DEUX participants de la rencontre peuvent la noter
+  const existing = await prisma.meetingProposal.findUnique({ where: { id: req.params.id } });
+  if (!existing) return res.status(404).json({ error: 'Rencontre introuvable' });
+  if (existing.fromId !== req.userId && existing.toId !== req.userId) {
+    return res.status(403).json({ error: 'Non autorisé' });
+  }
+
   const proposal = await prisma.meetingProposal.update({
     where: { id: req.params.id },
-    data: { status: 'RATED' },
+    data: { status: 'RATED', rating }, // la note est enfin persistée
     include: { from: true, to: true },
   });
 
@@ -408,6 +425,11 @@ router.post('/meetings/:userId', async (req: any, res) => {
 
 // ── POST /api/map/meetings/:id/accept — Accepter ─────────────────────────────
 router.post('/meetings/:id/accept', async (req: any, res) => {
+  // Seul le DESTINATAIRE de la proposition peut l'accepter
+  const existing = await prisma.meetingProposal.findUnique({ where: { id: req.params.id } });
+  if (!existing) return res.status(404).json({ error: 'Proposition introuvable' });
+  if (existing.toId !== req.userId) return res.status(403).json({ error: 'Non autorisé' });
+
   const proposal = await prisma.meetingProposal.update({
     where: { id: req.params.id },
     data: { status: 'ACCEPTED' },
@@ -432,6 +454,11 @@ router.post('/meetings/:id/accept', async (req: any, res) => {
 
 // ── POST /api/map/meetings/:id/decline — Décliner ────────────────────────────
 router.post('/meetings/:id/decline', async (req: any, res) => {
+  // Seul le DESTINATAIRE de la proposition peut la décliner
+  const existing = await prisma.meetingProposal.findUnique({ where: { id: req.params.id } });
+  if (!existing) return res.status(404).json({ error: 'Proposition introuvable' });
+  if (existing.toId !== req.userId) return res.status(403).json({ error: 'Non autorisé' });
+
   const proposal = await prisma.meetingProposal.update({
     where: { id: req.params.id },
     data: { status: 'DECLINED' },

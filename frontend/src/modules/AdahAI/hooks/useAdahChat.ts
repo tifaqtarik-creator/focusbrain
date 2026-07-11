@@ -91,12 +91,12 @@ export function useAdahChat() {
 
         for (const line of lines) {
           if (!line.startsWith('data: ')) continue;
-          try {
-            const data = JSON.parse(line.slice(6));
-            if (data.text) appendStream(data.text);
-            if (data.done) commitStream();
-            if (data.error) throw new Error(data.error);
-          } catch { /* JSON parse error, skip */ }
+          // Ne jamais avaler une erreur serveur dans le catch du JSON.parse
+          let data: any = null;
+          try { data = JSON.parse(line.slice(6)); } catch { continue; }
+          if (data.error) throw new Error(data.error);
+          if (data.text) appendStream(data.text);
+          if (data.done) commitStream();
         }
       }
 

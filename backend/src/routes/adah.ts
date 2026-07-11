@@ -280,9 +280,12 @@ router.post('/sessions/:id/chat', async (req: AuthRequest, res) => {
 
   const session = await prisma.adahSession.findFirst({
     where: { id: req.params.id, userId: req.userId! },
-    include: { messages: { orderBy: { createdAt: 'asc' }, take: 20 } },
+    // Les 20 DERNIERS messages (desc), remis en ordre chronologique plus bas —
+    // sinon Claude reçoit le début de la conversation et perd le contexte récent
+    include: { messages: { orderBy: { createdAt: 'desc' }, take: 20 } },
   });
   if (!session) return res.status(404).json({ error: 'Session introuvable' });
+  session.messages.reverse();
 
   const user = await prisma.user.findUnique({
     where: { id: req.userId! },
@@ -459,12 +462,12 @@ router.get('/memory', async (req: AuthRequest, res) => {
   res.json(memories);
 });
 
-// ── GET /api/adah/voice-token — Token Deepgram (Phase 2) ─────────────────────
+// ── POST /api/adah/voice-token — Token Deepgram (Phase 2, non implémenté) ────
+// SÉCURITÉ : ne JAMAIS renvoyer la clé API brute au client. Le jour où la voix
+// Deepgram sera branchée, générer ici un token temporaire scopé
+// (POST https://api.deepgram.com/v1/auth/grant) — pas la clé du compte.
 router.post('/voice-token', async (_req: AuthRequest, res) => {
-  // TODO Phase 2 : générer token Deepgram signé
-  const apiKey = process.env.DEEPGRAM_API_KEY;
-  if (!apiKey) return res.status(501).json({ error: 'Deepgram non configuré' });
-  res.json({ token: apiKey, model: 'nova-2' });
+  res.status(501).json({ error: 'Transcription vocale serveur non disponible — le mode vocal utilise la reconnaissance native du navigateur' });
 });
 
 // ── GET /api/adah/stats — Stats pour Mon Espace ───────────────────────────────

@@ -19,7 +19,8 @@ export default function Register() {
   });
   const step2Schema = z.object({
     name: z.string().min(1, a.nameRequired).max(50),
-    tdahType: z.enum(['INATTENTIF', 'HYPERACTIF', 'COMBINE', 'NON_SPECIFIE', 'PREFERE_NE_PAS_DIRE']).optional(),
+    // '' = « Je ne sais pas encore » (option par défaut du select) — accepté puis retiré avant l'envoi
+    tdahType: z.enum(['INATTENTIF', 'HYPERACTIF', 'COMBINE', 'NON_SPECIFIE', 'PREFERE_NE_PAS_DIRE']).optional().or(z.literal('')),
   });
   type Step1 = z.infer<typeof step1Schema>;
   type Step2 = z.infer<typeof step2Schema>;
@@ -42,7 +43,8 @@ export default function Register() {
     setLoading(true); setError('');
     try {
       const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      const res = await api.post('/auth/register', { ...step1Data, ...data, timezone });
+      const payload = { ...step1Data, ...data, tdahType: data.tdahType || undefined, timezone };
+      const res = await api.post('/auth/register', payload);
       setAuth(res.data.user, res.data.accessToken, res.data.refreshToken);
       navigate('/onboarding');
     } catch (e: any) {

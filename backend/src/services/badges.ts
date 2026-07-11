@@ -1,27 +1,25 @@
 import { prisma } from '../lib/prisma';
 import { BadgeType } from '@prisma/client';
 
+// Sessions réellement terminées dans le flux Slot (le vrai produit) —
+// l'ancienne table `participant` n'est plus alimentée
+const completedSlots = (userId: string) =>
+  prisma.slot.count({
+    where: { OR: [{ creatorId: userId }, { partnerId: userId }], completedAt: { not: null } },
+  });
+
 const BADGE_RULES: { type: BadgeType; check: (userId: string) => Promise<boolean> }[] = [
   {
     type: BadgeType.PREMIER_PAS,
-    check: async (userId) => {
-      const count = await prisma.participant.count({ where: { userId } });
-      return count >= 1;
-    },
+    check: async (userId) => (await completedSlots(userId)) >= 1,
   },
   {
     type: BadgeType.REGULIER,
-    check: async (userId) => {
-      const count = await prisma.participant.count({ where: { userId } });
-      return count >= 10;
-    },
+    check: async (userId) => (await completedSlots(userId)) >= 10,
   },
   {
     type: BadgeType.BODY_DOUBLER,
-    check: async (userId) => {
-      const count = await prisma.participant.count({ where: { userId } });
-      return count >= 50;
-    },
+    check: async (userId) => (await completedSlots(userId)) >= 50,
   },
   {
     type: BadgeType.CERCLE_FIDELE,
@@ -35,27 +33,25 @@ const BADGE_RULES: { type: BadgeType; check: (userId: string) => Promise<boolean
   {
     type: BadgeType.EARLY_ACTIVATOR,
     check: async (userId) => {
-      const earlySessions = await prisma.participant.findMany({
-        where: { userId },
-        include: { session: { select: { startTime: true } } },
+      const slots = await prisma.slot.findMany({
+        where: { OR: [{ creatorId: userId }, { partnerId: userId }], completedAt: { not: null } },
+        select: { startTime: true },
       });
-      const earlyCount = earlySessions.filter(p => {
-        const hour = p.session.startTime?.getHours();
-        return hour !== undefined && hour < 9;
-      }).length;
+      const earlyCount = slots.filter(s => s.startTime.getHours() < 9).length;
       return earlyCount >= 10;
     },
   },
   {
     type: BadgeType.REBOUND_CHAMPION,
     check: async (userId) => {
-      const sessions = await prisma.participant.findMany({
-        where: { userId },
-        orderBy: { joinedAt: 'asc' },
-        select: { joinedAt: true },
+      // Revenu après une pause de +14 jours — le badge anti-culpabilisation
+      const slots = await prisma.slot.findMany({
+        where: { OR: [{ creatorId: userId }, { partnerId: userId }], completedAt: { not: null } },
+        orderBy: { startTime: 'asc' },
+        select: { startTime: true },
       });
-      for (let i = 1; i < sessions.length; i++) {
-        const gap = sessions[i].joinedAt.getTime() - sessions[i - 1].joinedAt.getTime();
+      for (let i = 1; i < slots.length; i++) {
+        const gap = slots[i].startTime.getTime() - slots[i - 1].startTime.getTime();
         if (gap > 14 * 24 * 60 * 60 * 1000) return true;
       }
       return false;

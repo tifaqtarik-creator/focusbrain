@@ -104,15 +104,20 @@ router.post('/capture/:orderId', async (req: any, res) => {
       },
     });
 
-    // Activer isPremium si c'est un abonnement
+    // Activer isPremium si c'est un abonnement — avec sa date d'expiration.
+    // Un renouvellement avant terme prolonge depuis la fin actuelle.
     if (payment.plan !== 'DONATION') {
       const durationDays = payment.plan === 'PREMIUM_YEARLY' ? 365 : 30;
-      const premiumUntil = new Date();
-      premiumUntil.setDate(premiumUntil.getDate() + durationDays);
+      const current = await prisma.user.findUnique({
+        where: { id: req.userId }, select: { premiumUntil: true },
+      });
+      const base = current?.premiumUntil && current.premiumUntil > new Date()
+        ? new Date(current.premiumUntil) : new Date();
+      base.setDate(base.getDate() + durationDays);
 
       await prisma.user.update({
         where: { id: req.userId },
-        data: { isPremium: true },
+        data: { isPremium: true, premiumUntil: base },
       });
     }
 

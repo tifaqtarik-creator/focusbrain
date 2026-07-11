@@ -14,6 +14,7 @@ import {
 import { ADHD_PLAYLISTS, CATEGORIES, Playlist } from '../data/adhdPlaylists';
 import { useColoredNoise } from '../hooks/useColoredNoise';
 import YouTubeSearch from '../components/music/YouTubeSearch';
+import { ensureNotifPermission, notify } from '../lib/bodyDoubling';
 
 // ── Quiz profil TDAH (4 questions) ────────────────────────────────────────────
 const QUIZ = [
@@ -315,6 +316,32 @@ export default function MusicPage() {
 }
 
 // ── Carte Pomodoro ────────────────────────────────────────────────────────────
+// Alerte de fin de cycle : bip + notification + titre d'onglet.
+// Indispensable en hyperfocus : l'utilisateur écoute de la musique et ne
+// regarde pas l'écran — un badge silencieux serait raté à 100 %.
+function pomodoroAlert(isBreak: boolean) {
+  try {
+    const ctx = new AudioContext();
+    [0, 0.35].forEach(delay => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.frequency.value = isBreak ? 660 : 880;
+      gain.gain.setValueAtTime(0.2, ctx.currentTime + delay);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 0.3);
+      osc.start(ctx.currentTime + delay); osc.stop(ctx.currentTime + delay + 0.3);
+    });
+    setTimeout(() => ctx.close().catch(() => {}), 1000);
+  } catch { /* audio indisponible */ }
+  ensureNotifPermission().then(() =>
+    notify(
+      isBreak ? 'Pause ! ☕' : 'Retour au focus 🎯',
+      isBreak ? '25 minutes de focus terminées — lève-toi, bois un verre d\'eau.' : 'La pause est finie, on reprend en douceur.'
+    ));
+  document.title = isBreak ? '☕ Pause ! — FocusBrain' : '🎯 Focus ! — FocusBrain';
+  setTimeout(() => { document.title = 'FocusBrain — Body Doubling TDAH'; }, 15000);
+}
+
 function PomodoroCard({ show, onToggle }: { show: boolean; onToggle: () => void }) {
   const [seconds, setSeconds] = useState(25 * 60);
   const [running, setRunning] = useState(false);
@@ -330,6 +357,7 @@ function PomodoroCard({ show, onToggle }: { show: boolean; onToggle: () => void 
             const nextBreak = !isBreak;
             setIsBreak(nextBreak);
             setRunning(false);
+            pomodoroAlert(nextBreak);
             return nextBreak ? 5 * 60 : 25 * 60;
           }
           return s - 1;

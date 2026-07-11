@@ -1,8 +1,10 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useState } from 'react';
 import { Brain, Check, X, Star, CreditCard, Smartphone, Landmark, Wallet, Lock } from 'lucide-react';
 import { useI18n } from '../lib/i18n';
+import { useAppStore } from '../stores/useStore';
+import PaymentModal from '../components/payment/PaymentModal';
 
 // ── Régions & devises ──────────────────────────────────────────────────────────
 const REGIONS = [
@@ -59,6 +61,9 @@ export default function Pricing() {
   const p = t.pricing;
   const [region, setRegion] = useState(lang === 'ar' ? 'maghreb' : lang === 'en' ? 'usa' : 'europe');
   const [billing, setBilling] = useState<'monthly' | 'yearly'>('monthly');
+  const [showPayment, setShowPayment] = useState(false);
+  const isLoggedIn = useAppStore(s => !!s.accessToken);
+  const navigate = useNavigate();
 
   const currentRegion = REGIONS.find(r => r.id === region) || REGIONS[1];
   const price = billing === 'yearly'
@@ -139,6 +144,11 @@ export default function Pricing() {
                 Facturé {currentRegion.symbol}{currentRegion.yearly}/an · Économie {currentRegion.symbol}{(currentRegion.monthly * 12 - currentRegion.yearly).toFixed(0)}
               </p>
             )}
+            {region !== 'europe' && (
+              <p className="text-white/60 text-xs mb-1">
+                Facturation en euros via PayPal : {billing === 'yearly' ? '79,99 €/an' : '9,99 €/mois'}
+              </p>
+            )}
             <p className="opacity-70 text-sm mb-4">{p.premiumSub}</p>
             <ul className="space-y-2 mb-6 text-sm text-white/90">
               <li className="flex items-center gap-2"><Check size={16} strokeWidth={2.5} className="text-white shrink-0" /> Tout le plan gratuit</li>
@@ -148,12 +158,27 @@ export default function Pricing() {
               <li className="flex items-center gap-2"><Check size={16} strokeWidth={2.5} className="text-white shrink-0" /> Vidéo TCC (Daily.co)</li>
               <li className="flex items-center gap-2"><Check size={16} strokeWidth={2.5} className="text-white shrink-0" /> Cercle de confiance 5 membres</li>
             </ul>
-            <Link to="/register"
-              className="block text-center bg-white text-teal-600 font-black py-3.5 rounded-xl hover:bg-surface-soft transition-colors">
-              {p.startTrial}
-            </Link>
+            {isLoggedIn ? (
+              <button onClick={() => setShowPayment(true)}
+                className="block w-full text-center bg-white text-teal-600 font-black py-3.5 rounded-xl hover:bg-surface-soft transition-colors">
+                {p.startTrial}
+              </button>
+            ) : (
+              <Link to="/register"
+                className="block text-center bg-white text-teal-600 font-black py-3.5 rounded-xl hover:bg-surface-soft transition-colors">
+                {p.startTrial}
+              </Link>
+            )}
           </motion.div>
         </div>
+
+        {/* Tunnel d'achat Premium (utilisateur connecté) */}
+        <PaymentModal
+          isOpen={showPayment}
+          plan={billing === 'yearly' ? 'PREMIUM_YEARLY' : 'PREMIUM_MONTHLY'}
+          onSuccess={() => { setShowPayment(false); navigate('/dashboard'); }}
+          onClose={() => setShowPayment(false)}
+        />
 
         {/* Tableau comparatif */}
         <div className="bg-white rounded-2xl border border-line overflow-hidden mb-6">

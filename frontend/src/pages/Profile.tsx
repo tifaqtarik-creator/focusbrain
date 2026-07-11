@@ -38,8 +38,10 @@ export default function Profile() {
     <div className="max-w-xl mx-auto px-4 py-10">
       {/* En-tête profil — simple, aéré */}
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-10">
-        <div className="w-20 h-20 bg-teal-100 rounded-2xl flex items-center justify-center text-3xl font-black text-teal-600 mx-auto mb-4">
-          {user.name[0].toUpperCase()}
+        <div className="w-20 h-20 bg-teal-100 rounded-2xl overflow-hidden flex items-center justify-center text-3xl font-black text-teal-600 mx-auto mb-4">
+          {user.avatar
+            ? <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
+            : user.name[0].toUpperCase()}
         </div>
         <h1 className="text-2xl font-black text-ink-900">{user.name}</h1>
         <p className="flex items-center justify-center gap-1 text-teal-600 font-semibold mt-1">

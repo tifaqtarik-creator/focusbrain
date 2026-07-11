@@ -3,10 +3,11 @@ import type { Config } from 'tailwindcss';
 /**
  * FocusBrain — Design System « Calm Focus »
  * Palette pensée pour le TDAH : peu de couleurs, désaturées et apaisantes,
- * fort contraste réservé au texte. Une couleur primaire (teal), une couleur
- * d'accent unique (amber, usage rare), un secondaire discret, et des neutres.
- * Retune des clés existantes (teal/violet/amber) → tout l'app se calme sans
- * réécrire chaque page.
+ * fort contraste réservé au texte. Une couleur primaire (bleu calme), une
+ * couleur d'accent unique (amber, usage rare), un secondaire discret, et des
+ * neutres. La clé s'appelle toujours `teal` pour ne pas réécrire chaque page :
+ * retuner ces valeurs rethème toute l'app d'un coup.
+ * Le 500 (#3B6FC4) garde un contraste ≥ 4.5:1 avec du texte blanc (WCAG AA).
  */
 export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
@@ -17,18 +18,18 @@ export default {
         display: ['DM Sans', 'sans-serif'],
       },
       colors: {
-        // ── PRIMAIRE — teal apaisant (focus, calme) ──────────────────────────
+        // ── PRIMAIRE — bleu apaisant (focus, calme) ──────────────────────────
         teal: {
-          50:  '#ECF6F3',
-          100: '#D6EDE7',
-          200: '#AEDAD0',
-          300: '#7DC3B5',
-          400: '#4FAD9B',
-          500: '#2E9D89',  // primaire
-          600: '#1F8473',
-          700: '#196D5F',
-          800: '#15564B',
-          900: '#11463E',
+          50:  '#EEF4FC',
+          100: '#DCE9F9',
+          200: '#B9D3F1',
+          300: '#8AB4E4',
+          400: '#5C93D6',
+          500: '#3B6FC4',  // primaire — contraste 4.9:1 avec blanc (AA ✓)
+          600: '#2F5AA8',
+          700: '#264A8C',
+          800: '#1E3A70',
+          900: '#182F5B',
         },
         // ── SECONDAIRE — indigo ardoise très discret (anciens violet-*) ───────
         violet: {
@@ -46,19 +47,19 @@ export default {
           500: '#DB9A45',
           600: '#C07F2C',
         },
-        // ── NEUTRES — ardoise tiède (texte / surfaces / bordures) ─────────────
+        // ── NEUTRES — ardoise bleutée (texte / surfaces / bordures) ───────────
         ink: {
-          900: '#16231F',  // titres
-          700: '#374842',  // texte
-          500: '#5C6B66',  // texte secondaire
-          400: '#8A9893',  // faible
+          900: '#141E30',  // titres
+          700: '#39465C',  // texte
+          500: '#5A6880',  // texte secondaire
+          400: '#66738A',  // faible — contraste 4.8:1 sur blanc (AA ✓)
         },
         surface: {
           DEFAULT: '#FFFFFF',
-          soft: '#F5F8F7',  // fond de page
-          muted: '#EDF2F1',
+          soft: '#F5F7FA',  // fond de page
+          muted: '#ECF0F6',
         },
-        line: '#E4EBE9',     // bordures
+        line: '#E2E8F1',     // bordures
       },
       borderRadius: {
         xl: '14px',
